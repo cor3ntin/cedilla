@@ -11,7 +11,7 @@ struct decomposition_jumping_table_item {
     // smallest codepoint of the block
     char32_t cp;
     // start of the block, relative to the start of the decomposition_rules array
-    char32_t start;
+    u_int32_t start;
     // Number of rules in the block
     uint16_t count;
     // Numbers of replacement characters. Each element is rule_size + 1 in size
@@ -25,9 +25,9 @@ constexpr char32_t nil_cp = 0x0000FDD0;
 constexpr char32_t composed_bitmask = 0x80000000;
 constexpr char32_t canonical_bitmask = 0x80000000;
 
-// extern decomposition_jumping_table;
-// extern decomposition_rules;
-#include <ucd/details/decomposition_data.h>
+ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table();
+ranges::iterator_range<const char32_t*> decomposition_rules();
+
 
 class rule {
 public:
@@ -60,18 +60,20 @@ public:
         struct cursor {
         private:
             const char32_t* m_pos;
+            const char32_t* m_start;
+            rule_size_t m_rule_size;
 
         public:
             cursor() = default;
-            cursor(const char32_t* data) : m_pos(data) {}
+            cursor(const char32_t* data, rule_size_t rule_size) :
+                m_pos(data),
+                m_start(data),
+                m_rule_size(rule_size) {}
             replacement read() const {
                 return replacement(m_pos);
             }
-            bool equal(cursor const& other) const {
-                return m_pos == other.m_pos;
-            }
             bool equal(ranges::v3::default_sentinel) const {
-                return *m_pos == nil_cp;
+                return *m_pos == nil_cp || m_pos == m_start + m_rule_size;
             }
             void next() {
                 m_pos++;
@@ -79,18 +81,9 @@ public:
             void prev() {
                 m_pos--;
             }
-            std::ptrdiff_t distance_to(cursor const& other) const {
-                return (other.m_pos - m_pos);
-            }
-            void advance(std::ptrdiff_t n) {
-                m_pos += n;
-            }
         };
         cursor begin_cursor() const {
-            return {m_start};
-        }
-        cursor end_cursor() const {
-            return {m_start + m_rule_size};
+            return {m_start, m_rule_size};
         }
     };
 
@@ -121,10 +114,11 @@ private:
 };
 
 inline bool operator<(const rule& r, char32_t codepoint) {
-    return r.codepoint() < codepoint;
+    char32_t rcp = r.codepoint();
+    return rcp < codepoint;
 }
 
-class decomposition_view : public ranges::v3::view_facade<decomposition_view, ranges::finite> {
+class decomposition_view : public ranges::v3::view_facade<decomposition_view> {
 public:
     decomposition_view(rule_size_t rule_size, const char32_t* data, uint32_t rule_count) :
         m_rule_size(rule_size),
@@ -178,16 +172,22 @@ private:
     }
 };
 
-inline decltype(decomposition_jumping_table)::const_iterator get_block_start(char32_t codepoint) {
-    const auto end = std::end(decomposition_jumping_table);
-    auto needle = std::lower_bound(std::begin(decomposition_jumping_table), end, codepoint,
+inline auto get_block_start(char32_t codepoint) {
+    const auto jp = decomposition_jumping_table();
+
+    const auto begin = std::begin(jp);
+    const auto end = std::end(jp);
+    auto needle = std::lower_bound(begin, end, codepoint,
                                    [](const decomposition_jumping_table_item& entry,
                                       const char32_t value) { return entry.cp < value; });
+    if(needle->cp > codepoint && needle != begin)
+        return needle - 1;
     return needle;
 }
 
-inline auto make_view(decltype(decomposition_jumping_table)::const_iterator& iterator) {
-    const char32_t* begin = decomposition_rules.data() + iterator->start;
+inline auto make_view(decltype(decomposition_jumping_table())::const_iterator& iterator) {
+    const auto rules = decomposition_rules();
+    const auto begin = std::begin(rules) + iterator->start;
     const auto count = iterator->count;
     const auto rule_size = iterator->rule_size;
     return decomposition_view(rule_size, begin, count);
@@ -195,11 +195,15 @@ inline auto make_view(decltype(decomposition_jumping_table)::const_iterator& ite
 
 inline auto find_rule_for_code_point(char32_t codepoint) {
     auto it = get_block_start(codepoint);
-    if(it == std::end(decomposition_jumping_table))
+    if(it == decomposition_jumping_table().end())
         return rule{codepoint};
     auto view = make_view(it);
     auto needle = std::lower_bound(std::begin(view), std::end(view), codepoint);
-    if(needle == std::end(view) || (*needle).codepoint() != codepoint)
+    if(needle == std::end(view)) {
+        return rule{codepoint};
+    }
+    const auto found = (*needle).codepoint();
+    if(found != codepoint)
         return rule{codepoint};
     return *needle;
 }

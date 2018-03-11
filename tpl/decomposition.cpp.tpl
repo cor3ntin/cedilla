@@ -1,13 +1,14 @@
 #include <ucd/decomposition.h>
 
 namespace unicode::details {
-    const std::array<decomposition_jumping_table_item, {{block_count}}> decomposition_jumping_table = {
+    static const std::array<decomposition_jumping_table_item, {{block_count}}+1> decomposition_jumping_table_data = {
         {{#blocks}}
-        decomposition_jumping_table_item{ {{first}}, {{start}}, {{size}}, {{number_of_replacements}} } {{#comma}},{{/comma}}  //{{name}} [{{first}}, {{last}}]
+        decomposition_jumping_table_item{ {{first}}, {{start}}, {{size}}, {{number_of_replacements}} },  //{{name}} [{{first}}, {{last}}]
         {{/blocks}}
+        decomposition_jumping_table_item{ 0x0F0000, 0, 0, 0} //End sentinel
     };
 
-    const std::array<char32_t, {{total_decompositition_items}} + 1> decomposition_rules = {
+    static const char32_t decomposition_rules_data[] = {
         {{#blocks}}
         //{{name}} [{{first}}, {{last}}]
 
@@ -19,4 +20,12 @@ namespace unicode::details {
         {{/blocks}}
         0
     };
+
+    ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table() {
+       return ranges::view::all(decomposition_jumping_table_data);
+    }
+
+    ranges::iterator_range<const char32_t*> decomposition_rules() {
+        return ranges::view::all(decomposition_rules_data);
+    }
 }

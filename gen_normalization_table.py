@@ -4,9 +4,10 @@ from lxml import etree
 import sys
 import os
 import pystache
+import re
 
 DIR = os.path.dirname(os.path.realpath(__file__))
-UNICODE_DATA = os.path.join(DIR, "ucd.all.flat.xml")
+UNICODE_DATA = os.path.join(DIR, "ucd", "ucd.all.flat.xml")
 
 def cp_code(cp):
     try:
@@ -169,13 +170,52 @@ with open(os.path.join(DIR, "tpl", "decomposition.cpp.tpl"), 'r') as f:
     with open(os.path.join("generated", "decomposition.cpp"), 'w') as out:
         out.write(pystache.render(template, template_data))
 
-#Header
-with open(os.path.join(DIR, "tpl", "decomposition_data.h.tpl"), 'r') as f:
-    template = f.read()
-    with open(os.path.join("generated", "include", "ucd", "details", "decomposition_data.h"), 'w') as out:
-        out.write(pystache.render(template, template_data))
+
+def test_to_cpp_value(v):
+    return "".join(map(lambda x:"\\U"+x.rjust(8, '0'), v.split(" ")))
+
+class test:
+    def __init__(self, c1, c2, c3, c4, c5, comment):
+        self.c1  = test_to_cpp_value(c1)
+        self.c2  = test_to_cpp_value(c2)
+        self.c3  = test_to_cpp_value(c3)
+        self.c4  = test_to_cpp_value(c4)
+        self.c5  = test_to_cpp_value(c5)
+        self.comment = comment
+
+def test_cases():
+    regex = re.compile(r'([0-9a-fA-F\s]+);([0-9a-fA-F\s]+);([0-9a-fA-F\s]+);([0-9a-fA-F\s]+);([0-9a-fA-F\s]+);\s*#(.*)$')
+
+    tests = []
+    with open(os.path.join(DIR, "ucd", "NormalizationTest.txt"), 'r') as test_file:
+        for line in test_file:
+            line = line.strip()
+            if line == "" or line[0] == '#':
+                continue;
+            if line[0] == '@':
+                continue
+            else:
+                res = regex.match(line)
+                if "HANGUL" in res.group(6):
+                    continue
+                tests.append(test(res.group(1), res.group(2), res.group(3), res.group(4), res.group(5), res.group(6)))
+    return tests
 
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+def generate_normalization_tests():
+    with open(os.path.join(DIR, "tpl", "test_decomposition.cpp.tpl"), 'r') as f:
+        template = f.read()
+        for idx, tests in enumerate(chunks(test_cases(), 500)):
+            with open(os.path.join("generated", "test_decomposition_{}.cpp".format(idx)), 'w') as out:
+                out.write(pystache.render(template, {"tests" : tests, "idx" : idx } ))
+
+
+generate_normalization_tests()
 
 
 
