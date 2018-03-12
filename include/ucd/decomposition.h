@@ -18,6 +18,20 @@ struct decomposition_jumping_table_item {
     uint16_t rule_size;
 };
 
+//
+
+//cp, start, count
+struct alignas(8) composable_sequence_jumping_table_item {
+    uint32_t cp;
+    uint16_t count;
+    uint16_t start;
+};
+
+struct alignas(8) composable_sequence {
+    char32_t c;
+    char32_t l;
+};
+
 struct alignas(sizeof(char32_t)) combining_class_item {
     char32_t cp : 24;
     uint8_t ccc;
@@ -38,6 +52,7 @@ ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_ju
 ranges::iterator_range<const char32_t*> decomposition_rules();
 // Implementation is generated from unicode data
 ranges::iterator_range<const combining_class_item*> combining_classes();
+ranges::iterator_range<const composable_sequence*> composable_sequences();
 
 
 inline bool operator<(const combining_class_item& cci, char32_t codepoint) {

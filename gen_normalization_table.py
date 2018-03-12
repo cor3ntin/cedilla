@@ -19,16 +19,20 @@ def to_hex(cp, n = 8):
 
 class ucd_cp:
     def __init__(self, char):
-        self.cp    = cp_code(char.get('cp'))
-        self.na    = char.get('na')
-        self.dt    = char.get('dt')
-        self.hst   = char.get('hst')
-        self.dm    = char.get('dm')
-        self.block = char.get("blk")
-        self.ccc   = int(char.get("ccc"))
+        self.cp      = cp_code(char.get('cp'))
+        self.na      = char.get('na')
+        self.dt      = char.get('dt')
+        self.hst     = char.get('hst')
+        self.dm      = char.get('dm')
+        self.block   = char.get("blk")
+        self.ccc     = int(char.get("ccc"))
+        self.Comp_Ex = char.get("Comp_Ex") == 'Y'
 
     def has_decomposition(self):
         return self.dm != '#'
+
+    def is_primary_composite(self):
+        return self.has_decomposition() and not self.Comp_Ex and len(self.decomposition_sequence()) == 2
 
     def has_canonical_decomposition(self):
         return self.has_decomposition() and self.dt == 'can'
@@ -159,13 +163,46 @@ for block, chars in blocks.items():
     decomposition_data.append(dec);
 del decomposition_data[-1]["comma"]
 
+def gen_primary_composites():
+    lc_c = {}
+    for char in decomposable_chars.values():
+        if not char.is_primary_composite():
+            continue
+        seq = char.decomposition_sequence()
+        if len(seq) != 2:
+            raise ValueError("Unexpected decomposition sequence {} {}".format(char.cp, seq))
+        c = seq[1]
+        if not c in lc_c :
+            lc_c[c] =  []
+        lc_c[c].append( (seq[0], char.cp ) )
+
+    #sort each replacement
+    for lst in lc_c.keys():
+        lc_c[lst] = sorted(lc_c[lst], key=lambda i:(i[0]))
+
+    list_of_c = []
+    list_of_l_r = []
+    for key in sorted(lc_c.keys()):
+        list_of_c.append({"c" : to_hex(key), "start" : len(list_of_l_r), "count" : len(lc_c[key])})
+        for l_r in lc_c[key]:
+            list_of_l_r.append({"l" : to_hex(l_r[0]), "r" : to_hex(l_r[1])})
+    print(max(len(x) for x in lc_c.values()))
+    print(len(list_of_l_r))
+    return(list_of_c, list_of_l_r)
+
+
+primary_composites =  gen_primary_composites()
+
 template_data = {
     "total_codepoint_count" : count,
     "total_decompositition_items": total_decompositition_items,
     "blocks" : decomposition_data,
     "block_count" : len(decomposition_data),
-    "combining_classes" : combining_classes
+    "combining_classes" : combining_classes,
+    "composites_c"   : primary_composites[0],
+    "composites_l_r" : primary_composites[1]
 }
+
 
 #Source file
 import pathlib
