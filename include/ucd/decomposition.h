@@ -11,11 +11,16 @@ struct decomposition_jumping_table_item {
     // smallest codepoint of the block
     char32_t cp;
     // start of the block, relative to the start of the decomposition_rules array
-    u_int32_t start;
+    uint32_t start;
     // Number of rules in the block
     uint16_t count;
     // Numbers of replacement characters. Each element is rule_size + 1 in size
     uint16_t rule_size;
+};
+
+struct alignas(sizeof(char32_t)) combining_class_item {
+    char32_t cp : 24;
+    uint8_t ccc;
 };
 
 using rule_size_t = decltype(decomposition_jumping_table_item::rule_size);
@@ -25,27 +30,60 @@ constexpr char32_t nil_cp = 0x0000FDD0;
 constexpr char32_t composed_bitmask = 0x80000000;
 constexpr char32_t canonical_bitmask = 0x80000000;
 
+// Implementation is generated from unicode data
+// We split the data per code blocks to improve caching
+// Also, the number of replacement depends on the block
 ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table();
+// Implementation is generated from unicode data
 ranges::iterator_range<const char32_t*> decomposition_rules();
+// Implementation is generated from unicode data
+ranges::iterator_range<const combining_class_item*> combining_classes();
 
+
+inline bool operator<(const combining_class_item& cci, char32_t codepoint) {
+    return cci.cp < codepoint;
+}
+
+inline uint8_t combining_class(char32_t codepoint) {
+    const auto ccc_data = combining_classes();
+    const auto end = std::end(ccc_data);
+    auto it = std::lower_bound(std::begin(ccc_data), end, codepoint);
+    if(it == end || it->cp != codepoint)
+        return 0;
+    return it->ccc;
+}
+
+class replacement {
+    char32_t m_cp;
+    uint8_t m_ccc;
+
+    friend class rule;
+
+    friend void swap(replacement& a, replacement& b) {
+        using std::swap;
+        std::swap(a.m_ccc, b.m_ccc);
+        std::swap(a.m_cp, b.m_cp);
+    }
+
+public:
+    replacement(char32_t cp) : m_cp(cp) {
+        m_ccc = combining_class(codepoint());
+    }
+
+    char32_t codepoint() const {
+        return m_cp & ~(composed_bitmask);
+    }
+
+    bool is_composed() const {
+        return m_cp & composed_bitmask;
+    }
+    uint8_t ccc() const {
+        return m_ccc;
+    }
+};
 
 class rule {
 public:
-    class replacement {
-        const char32_t* const m_data;
-        friend class rule;
-
-    public:
-        replacement(const char32_t* const data) : m_data(data) {}
-
-        char32_t codepoint() const {
-            return (*m_data) & ~(composed_bitmask);
-        }
-
-        bool is_composed() const {
-            return (*m_data) & composed_bitmask;
-        }
-    };
     class replacements_view : public ranges::v3::view_facade<replacements_view, ranges::finite> {
     public:
         replacements_view(const char32_t* start, const rule_size_t rule_size) :
@@ -70,7 +108,7 @@ public:
                 m_start(data),
                 m_rule_size(rule_size) {}
             replacement read() const {
-                return replacement(m_pos);
+                return replacement(*m_pos);
             }
             bool equal(ranges::v3::default_sentinel) const {
                 return *m_pos == nil_cp || m_pos == m_start + m_rule_size;
@@ -98,7 +136,7 @@ public:
         return (*m_data) & ~(canonical_bitmask);
     }
 
-    auto replacements() {
+    auto replacements() const {
         if(m_rule_size == 0) {
             return replacements_view(&m_codepoint, 1);
         }
@@ -208,27 +246,81 @@ inline auto find_rule_for_code_point(char32_t codepoint) {
     return *needle;
 }
 
+using buffer_t = std::vector<details::replacement>;
+// boost::container::small_vector<details::replacement, 4>;
+
+inline bool decompose(char32_t codepoint, buffer_t& buffer) {
+    const auto rule = details::find_rule_for_code_point(codepoint);
+    bool starter = false;
+    for(auto&& replacement : rule.replacements()) {
+        if(replacement.is_composed()) {
+            details::decompose(replacement.codepoint(), buffer);
+            continue;
+        }
+        if(!starter && replacement.ccc() == 0)
+            starter = true;
+        buffer.push_back(replacement);
+    }
+    return starter;
+}
+
+template<typename It>
+void canonical_sort(It begin, It end) {
+    if(std::distance(begin, end) < 2)
+        return;
+    bool found = false;
+    do {
+        found = false;
+        for(auto it = begin; it + 1 != end; ++it) {
+            const auto a = it->ccc(), b = (it + 1)->ccc();
+            if(a > b && b > 0) {
+                swap(*it, *(it + 1));
+                found = true;
+            }
+        }
+    } while(found);
+}
+
+template<typename Container>
+void flush_buffer(buffer_t& buffer, Container& c) {
+    const auto b = std::begin(buffer);
+    const auto is_starter = [](const replacement& r) { return r.ccc() == 0; };
+    const auto first = std::find_if(b, std::end(buffer), is_starter);
+    const auto end = first == std::end(buffer)
+                         ? std::end(buffer)
+                         : std::find_if(first + 1, std::end(buffer), is_starter);
+    canonical_sort(b, end);
+    for(auto it = b; it != end; ++it) {
+        c.push_back(it->codepoint());
+    }
+    buffer.erase(b, end);
+}
 
 }    // namespace unicode::details
 
 namespace unicode {
-template<typename Container>
-void decompose(char32_t codepoint, Container& c) {
-    auto rule = details::find_rule_for_code_point(codepoint);
-    for(auto&& replacement : rule.replacements()) {
-        if(replacement.is_composed()) {
-            decompose(replacement.codepoint(), c);
-            continue;
+template<typename It, typename Container>
+void decompose(It begin, It end, Container& c) {
+    int starter_count = 0;
+    details::buffer_t buffer;
+    for(auto it = begin; it != end; ++it) {
+        bool found_starter = details::decompose(*it, buffer);
+        if(found_starter) {
+            starter_count++;
+            if(starter_count > 1) {
+                flush_buffer(buffer, c);
+                starter_count--;
+            }
         }
-        c.push_back(replacement.codepoint());
     }
+    canonical_sort(std::begin(buffer), std::end(buffer));
+    for(auto&& replacement : buffer)
+        c.push_back(replacement.codepoint());
 }
+
 inline std::u32string decomposed(const std::u32string& in) {
     std::u32string out;
-    for(auto& codepoint : in) {
-        decompose(codepoint, out);
-    }
-    // out.push_back('\0');
+    decompose(std::begin(in), std::end(in), out);
     return out;
 }
 

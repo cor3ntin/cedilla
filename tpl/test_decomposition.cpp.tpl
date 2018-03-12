@@ -32,13 +32,13 @@ TEST_CASE( "Normalization tests {{idx}}" ) {
         auto d2 = decomposed(c2);
         auto d3 = decomposed(c3);
 
-        sort(std::begin(c1), std::end(c1));
+        /*sort(std::begin(c1), std::end(c1));
         sort(std::begin(c2), std::end(c2));
         sort(std::begin(c3), std::end(c3));
 
         sort(std::begin(d1), std::end(d1));
         sort(std::begin(d2), std::end(d2));
-        sort(std::begin(d3), std::end(d3));
+        sort(std::begin(d3), std::end(d3));*/
 
         CHECK(c3 == d1);
         CHECK(c3 == d2);

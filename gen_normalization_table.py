@@ -14,8 +14,8 @@ def cp_code(cp):
         return int(cp, 16)
     except:
         return 0
-def to_hex(cp):
-    return "{0:#08X}".format(int(cp)).replace('X', 'x')
+def to_hex(cp, n = 8):
+    return "{0:#0{fill}X}".format(int(cp), fill=n).replace('X', 'x')
 
 class ucd_cp:
     def __init__(self, char):
@@ -25,6 +25,7 @@ class ucd_cp:
         self.hst   = char.get('hst')
         self.dm    = char.get('dm')
         self.block = char.get("blk")
+        self.ccc   = int(char.get("ccc"))
 
     def has_decomposition(self):
         return self.dm != '#'
@@ -55,6 +56,9 @@ decomposable_chars = {}
 
 #List of chars that can be decomposed canonically
 canonical_decomposable_chars = {}
+
+#List of chararcters with an non-zero combining class
+combining_classes = [] # List of <cp, ccc> pairs
 
 def find_block(cp):
     for block in blocks_data.values():
@@ -109,6 +113,8 @@ for item in unicode_characters_gen():
             add_to_block(blocks, item)
         if item.has_canonical_decomposition():
             canonical_decomposable_chars[item.cp] = item
+        if item.ccc != 0:
+            combining_classes.append({"cp" : to_hex(item.cp, 6), "ccc" : item.ccc })
 
 
 decomposition_data = []
@@ -157,7 +163,8 @@ template_data = {
     "total_codepoint_count" : count,
     "total_decompositition_items": total_decompositition_items,
     "blocks" : decomposition_data,
-    "block_count" : len(decomposition_data)
+    "block_count" : len(decomposition_data),
+    "combining_classes" : combining_classes
 }
 
 #Source file

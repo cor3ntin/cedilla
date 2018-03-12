@@ -1,9 +1,9 @@
 #define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
+#include <ucd/decomposition.h>
+
 
 // clang-format off
 
-/*
 using namespace unicode;
 
 template <typename I> std::string n2hexstr(I w, size_t hex_len = sizeof(I)<<1) {

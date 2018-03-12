@@ -20,6 +20,12 @@ namespace unicode::details {
         {{/blocks}}
         0
     };
+    static const combining_class_item combining_classes_data[] = {
+    {{#combining_classes}}
+    { {{cp}}, {{ccc}} },
+    {{/combining_classes}}
+    { 0xFFFFFF, 0 }
+    };
 
     ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table() {
        return ranges::view::all(decomposition_jumping_table_data);
@@ -27,5 +33,8 @@ namespace unicode::details {
 
     ranges::iterator_range<const char32_t*> decomposition_rules() {
         return ranges::view::all(decomposition_rules_data);
+    }
+    ranges::iterator_range<const combining_class_item*> combining_classes() {
+        return ranges::view::all(combining_classes_data);
     }
 }
