@@ -135,7 +135,7 @@ for _, chars in blocks.items():
 
 
 for block, chars in blocks.items():
-    chars = [char for char in chars if char.cp in canonical_decomposable_chars]
+    #chars = [char for char in chars if char.cp in canonical_decomposable_chars]
     if len(chars) == 0:
         continue
 
@@ -254,7 +254,7 @@ def chunks(l, n):
 def generate_normalization_tests():
     with open(os.path.join(DIR, "tpl", "test_decomposition.cpp.tpl"), 'r') as f:
         template = f.read()
-        for idx, tests in enumerate(chunks(test_cases(), 500)):
+        for idx, tests in enumerate(chunks(test_cases(), 100)):
             with open(os.path.join("generated", "test_decomposition_{}.cpp".format(idx)), 'w') as out:
                 out.write(pystache.render(template, {"tests" : tests, "idx" : idx } ))
 

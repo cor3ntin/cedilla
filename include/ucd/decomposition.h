@@ -4,6 +4,7 @@
 #include <boost/container/small_vector.hpp>
 #include <range/v3/view_facade.hpp>
 #include <range/v3/view.hpp>
+#include <range/v3/view/all.hpp>
 
 namespace unicode::details {
 
@@ -20,7 +21,7 @@ struct decomposition_jumping_table_item {
 
 //
 
-//cp, start, count
+// cp, start, count
 struct alignas(8) composable_sequence_jumping_table_item {
     uint32_t cp;
     uint16_t count;
@@ -151,6 +152,12 @@ public:
         return (*m_data) & ~(canonical_bitmask);
     }
 
+    bool is_canonical() const {
+        if(m_rule_size == 0)
+            return true;
+        return (*m_data) & canonical_bitmask;
+    }
+
     auto replacements() const {
         if(m_rule_size == 0) {
             return replacements_view(&m_codepoint, 1);
@@ -246,7 +253,7 @@ inline auto make_view(decltype(decomposition_jumping_table())::const_iterator& i
     return decomposition_view(rule_size, begin, count);
 }
 
-inline auto find_rule_for_code_point(char32_t codepoint) {
+inline auto find_rule_for_code_point(char32_t codepoint, bool canonical) {
     auto it = get_block_start(codepoint);
     if(it == decomposition_jumping_table().end())
         return rule{codepoint};
@@ -256,24 +263,26 @@ inline auto find_rule_for_code_point(char32_t codepoint) {
         return rule{codepoint};
     }
     const auto found = (*needle).codepoint();
-    if(found != codepoint)
+    if(found != codepoint || (canonical && !(*needle).is_canonical()))
         return rule{codepoint};
     return *needle;
 }
 
-using buffer_t = std::vector<details::replacement>;
-// boost::container::small_vector<details::replacement, 4>;
+using buffer_t =
+    std::vector<replacement>;    // boost::container::small_vector<details::replacement, 4>;
 
-inline bool decompose(char32_t codepoint, buffer_t& buffer) {
-    const auto rule = details::find_rule_for_code_point(codepoint);
-    bool starter = false;
+inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = false) {
+    const auto rule = details::find_rule_for_code_point(codepoint, canonical);
+    int starter = 0;
     for(auto&& replacement : rule.replacements()) {
+        auto c = replacement.codepoint();
         if(replacement.is_composed()) {
-            details::decompose(replacement.codepoint(), buffer);
+            starter += details::decompose(replacement.codepoint(), buffer,
+                                          canonical);    // consider everything when recursing
             continue;
         }
-        if(!starter && replacement.ccc() == 0)
-            starter = true;
+        if(replacement.ccc() == 0)
+            starter++;
         buffer.push_back(replacement);
     }
     return starter;
@@ -296,48 +305,137 @@ void canonical_sort(It begin, It end) {
     } while(found);
 }
 
-template<typename Container>
-void flush_buffer(buffer_t& buffer, Container& c) {
+inline auto sort_decomposition_buffer(buffer_t& buffer) {
     const auto b = std::begin(buffer);
     const auto is_starter = [](const replacement& r) { return r.ccc() == 0; };
     const auto first = std::find_if(b, std::end(buffer), is_starter);
-    const auto end = first == std::end(buffer)
-                         ? std::end(buffer)
-                         : std::find_if(first + 1, std::end(buffer), is_starter);
+    const auto end = (first == std::end(buffer)) ? std::end(buffer) : first + 1;
     canonical_sort(b, end);
-    for(auto it = b; it != end; ++it) {
-        c.push_back(it->codepoint());
-    }
-    buffer.erase(b, end);
+    return end;
 }
 
 }    // namespace unicode::details
 
 namespace unicode {
-template<typename It, typename Container>
-void decompose(It begin, It end, Container& c) {
-    int starter_count = 0;
-    details::buffer_t buffer;
-    for(auto it = begin; it != end; ++it) {
-        bool found_starter = details::decompose(*it, buffer);
-        if(found_starter) {
-            starter_count++;
-            if(starter_count > 1) {
-                flush_buffer(buffer, c);
-                starter_count--;
-            }
-        }
-    }
-    canonical_sort(std::begin(buffer), std::end(buffer));
-    for(auto&& replacement : buffer)
-        c.push_back(replacement.codepoint());
+
+enum class NormalizationForm {
+    NFD = 0x01,
+    NFKD = 0x10,
+    NFC = 0x02 | NFD,
+    NFKC = 0x20 | NFD,
+};
+
+int constexpr as_int(NormalizationForm F) {
+    return static_cast<std::underlying_type_t<NormalizationForm>>(F);
 }
 
-inline std::u32string decomposed(const std::u32string& in) {
+template<typename It>
+It do_decompose_next(It begin, It end, details::buffer_t& buffer, bool canonical = true) {
+    int starter_count = 0;
+    for(auto it = begin; it != end; it++) {
+        starter_count += details::decompose(*it, buffer, canonical);
+        if(starter_count > 1)
+            return std::next(it);
+    }
+    return end;
+}
+
+template<typename Rng>
+struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ranges::finite> {
+    normalization_view(Rng&& rng, NormalizationForm normalization_form) :
+        m_rng(std::forward<Rng>(rng)),
+        m_normalization_form(normalization_form) {}
+    struct cursor {
+    private:
+        using RngIt = typename Rng::const_iterator;
+        RngIt m_it, m_end;
+        details::buffer_t m_buffer;
+        NormalizationForm m_normalization_form;
+        details::buffer_t::iterator m_buffer_end, m_buffer_pos;
+
+    public:
+        cursor() = default;
+        cursor(RngIt begin, RngIt end, NormalizationForm normalization_form) :
+            m_it(begin),
+            m_end(end),
+            m_normalization_form(normalization_form) {
+
+            decompose_next();
+        }
+        char32_t read() const {
+            return m_buffer_pos->codepoint();
+        }
+        bool equal(ranges::default_sentinel) const {
+            return (m_it == m_end) && m_buffer.empty();
+        }
+        void next() {
+            m_buffer_pos++;
+            if(m_buffer_pos == m_buffer_end) {
+                decompose_next();
+                return;
+            }
+        }
+        void decompose_next() {
+            m_buffer.erase(std::begin(m_buffer), m_buffer_end);
+            if(m_buffer.empty()) {
+                m_it = do_decompose_next(
+                    m_it, m_end, m_buffer,
+                    (as_int(m_normalization_form) & as_int(NormalizationForm::NFD)));
+            }
+            m_buffer_end = sort_decomposition_buffer(m_buffer);
+            m_buffer_pos = std::begin(m_buffer);
+        }
+    };
+    cursor begin_cursor() const {
+        return {std::begin(m_rng), std::end(m_rng), m_normalization_form};
+    }
+
+private:
+    friend struct ranges::range_access;
+    Rng m_rng;
+    NormalizationForm m_normalization_form;
+};
+
+template<NormalizationForm F, typename... Rng>
+auto make_normalization_view(Rng... rng) {
+    return normalization_view<decltype(ranges::view::all(rng...))>(ranges::view::all(rng...));
+}
+
+template<NormalizationForm F>
+inline std::u32string normalized(const std::u32string& in) {
     std::u32string out;
-    decompose(std::begin(in), std::end(in), out);
+    auto view = make_normalization_view<F>(in);
     return out;
 }
 
+namespace views {
+    struct normalize_fn {
+    private:
+        friend ranges::view::view_access;
+        static auto bind(normalize_fn normalize, NormalizationForm Form) {
+            return ranges::make_pipeable(std::bind(normalize, std::placeholders::_1, Form));
+        }
 
+    public:
+        template<typename Rng>
+        auto operator()(Rng&& rng, NormalizationForm Form) const {
+            return normalization_view(std::move(rng), Form);
+        }
+    };    // namespace views
+    inline namespace { inline ranges::view::view<normalize_fn> normalize; }
+}    // namespace views
+
+template<typename Rng, typename Ot>
+void copy(Rng&& rng, Ot&& ot) {
+    for(auto&& v : rng) {
+        *ot++ = v;
+    }
+}
+
+inline std::u32string normalized(const std::u32string& in, NormalizationForm F) {
+    std::u32string out;
+    auto v = ranges::view::all(in) | views::normalize(F);
+    copy(v, std::back_inserter(out));
+    return out;
+}
 }    // namespace unicode
