@@ -401,13 +401,6 @@ auto make_normalization_view(Rng... rng) {
     return normalization_view<decltype(ranges::view::all(rng...))>(ranges::view::all(rng...));
 }
 
-template<NormalizationForm F>
-inline std::u32string normalized(const std::u32string& in) {
-    std::u32string out;
-    auto view = make_normalization_view<F>(in);
-    return out;
-}
-
 namespace views {
     struct normalize_fn {
     private:
