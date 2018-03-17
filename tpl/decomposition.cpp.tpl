@@ -31,12 +31,12 @@ namespace unicode::details {
     {{#composites_c}}
     { {{c}}, {{start}}, {{count}} },
     {{/composites_c}}
-    { 0xFFFFF, 0, 0 }
+    { 0xFFFFF, 0, 0}
     };
 
     static const composable_sequence recomposition_data[] = {
     {{#composites_l_r}}
-    { {{l}}, {{r}} },
+    { {{l}}, {{r}}},
     {{/composites_l_r}}
     { 0xFFFFF, 0xFFFFF}
     };
@@ -51,6 +51,11 @@ namespace unicode::details {
     ranges::iterator_range<const combining_class_item*> combining_classes() {
         return ranges::view::all(combining_classes_data);
     }
+
+    ranges::iterator_range<const composable_sequence_jumping_table_item*> composable_sequence_jumping_table() {
+        return ranges::view::all(composable_sequence_jumping_table_data);
+    }
+
     ranges::iterator_range<const composable_sequence*> composable_sequences() {
         //char (*__kaboom)[sizeof( recomposition_data )] = 8;
         return ranges::view::all(recomposition_data);

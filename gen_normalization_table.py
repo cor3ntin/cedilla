@@ -183,9 +183,19 @@ def gen_primary_composites():
     list_of_c = []
     list_of_l_r = []
     for key in sorted(lc_c.keys()):
-        list_of_c.append({"c" : to_hex(key), "start" : len(list_of_l_r), "count" : len(lc_c[key])})
+        canonical = 0
+        pos = len(list_of_l_r)
         for l_r in lc_c[key]:
-            list_of_l_r.append({"l" : to_hex(l_r[0]), "r" : to_hex(l_r[1])})
+            item = {"l" : to_hex(l_r[0]), "r" : to_hex(l_r[1])}
+            if not l_r[1] in canonical_decomposable_chars\
+                or not canonical_decomposable_chars[l_r[1]].has_canonical_decomposition():
+                    continue
+            canonical = canonical + 1
+            list_of_l_r.append(item)
+        if canonical > 0:
+            list_of_c.append({"c" : to_hex(key),
+                              "start" : pos,
+                              "count" : canonical})
     print(max(len(x) for x in lc_c.values()))
     print(len(list_of_l_r))
     return(list_of_c, list_of_l_r)

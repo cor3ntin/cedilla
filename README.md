@@ -5,7 +5,7 @@ Some unicode algorithms
 
 - [x] NFD
 - [x] NFDK
-- [ ] NF(K)C
+- [x] NF(K)C
 - [ ] Table memory optimization
 - [ ] Hangul
 - [ ] Use concepts

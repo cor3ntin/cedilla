@@ -42,6 +42,20 @@ TEST_CASE( "Normalization tests {{idx}}" ) {
         CHECK(std::u32string{U"{{c5}}"} == normalized(U"{{c3}}", NormalizationForm::NFKD));
         CHECK(std::u32string{U"{{c5}}"} == normalized(U"{{c4}}", NormalizationForm::NFKD));
         CHECK(std::u32string{U"{{c5}}"} == normalized(U"{{c5}}", NormalizationForm::NFKD));
+
+        //NFC
+        CHECK(std::u32string{U"{{c2}}"} == normalized(U"{{c1}}", NormalizationForm::NFC));
+        CHECK(std::u32string{U"{{c2}}"} == normalized(U"{{c2}}", NormalizationForm::NFC));
+        CHECK(std::u32string{U"{{c2}}"} == normalized(U"{{c3}}", NormalizationForm::NFC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c4}}", NormalizationForm::NFC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c5}}", NormalizationForm::NFC));
+
+        //NFKC
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c1}}", NormalizationForm::NFKC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c2}}", NormalizationForm::NFKC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c3}}", NormalizationForm::NFKC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c4}}", NormalizationForm::NFKC));
+        CHECK(std::u32string{U"{{c4}}"} == normalized(U"{{c5}}", NormalizationForm::NFKC));
     }
 {{/tests}}
 }

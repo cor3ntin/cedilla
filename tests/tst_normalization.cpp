@@ -23,25 +23,10 @@ inline std::ostream& operator << ( std::ostream& os, std::u32string const& value
 #include <catch2/catch.hpp>
 
 TEST_CASE("Sort") {
-    SECTION( R"__( (Ḋ◌̣; Ḍ◌̇; D◌̣◌̇; Ḍ◌̇; D◌̣◌̇; ) LATIN CAPITAL LETTER D WITH DOT ABOVE, COMBINING DOT BELOW)__" ) {
-            auto c1 = std::u32string{U"\U00001E0A\U00000323"};
-            auto c2 = std::u32string{U"\U00001E0C\U00000307"};
-            auto c3 = std::u32string{U"\U00000044\U00000323\U00000307"};
+    SECTION( R"__( (Ǆ; Ǆ; Ǆ; DŽ; DZ◌̌; ) LATIN CAPITAL LETTER DZ WITH CARON)__" ) {
+            //NFC
+             //CHECK(std::u32string{U"\U00000044\U0000017D"} == normalized(U"\U00000044\U0000005A\U0000030C", NormalizationForm::NFKC));
+         CHECK(std::u32string{U"\U00000DDD"} == normalized(U"\U00000DD9\U00000DCF\U00000DCA", NormalizationForm::NFC));
+}
 
-            auto d1 = decomposed(c1);
-            auto d2 = decomposed(c2);
-            auto d3 = decomposed(c3);
-
-            /*sort(std::begin(c1), std::end(c1));
-            sort(std::begin(c2), std::end(c2));
-            sort(std::begin(c3), std::end(c3));
-
-            sort(std::begin(d1), std::end(d1));
-            sort(std::begin(d2), std::end(d2));
-            sort(std::begin(d3), std::end(d3));*/
-
-            CHECK(c3 == d1);
-            CHECK(c3 == d2);
-            CHECK(c3 == d3);
-        }
 }
