@@ -6,6 +6,7 @@
 #include <range/v3/view_facade.hpp>
 #include <range/v3/view.hpp>
 #include <range/v3/view/all.hpp>
+#include <ucd/details/hangul.h>
 
 namespace unicode::details {
 
@@ -54,7 +55,8 @@ ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_ju
 ranges::iterator_range<const char32_t*> decomposition_rules();
 // Implementation is generated from unicode data
 ranges::iterator_range<const combining_class_item*> combining_classes();
-ranges::iterator_range<const composable_sequence_jumping_table_item*> composable_sequence_jumping_table();
+ranges::iterator_range<const composable_sequence_jumping_table_item*>
+composable_sequence_jumping_table();
 ranges::iterator_range<const composable_sequence*> composable_sequences();
 
 
@@ -121,7 +123,7 @@ public:
     private:
         const char32_t* m_start;
         const rule_size_t m_rule_size;
-        friend ranges::v3::range_access;
+        friend struct ranges::v3::range_access;
 
         struct cursor {
         private:
@@ -201,7 +203,7 @@ private:
     uint32_t m_rule_count;
     rule_size_t m_rule_size;
     const char32_t* m_pos;
-    friend ranges::v3::range_access;
+    friend struct ranges::v3::range_access;
 
     struct cursor {
     private:
@@ -284,6 +286,22 @@ using buffer_t =
     std::vector<replacement>;    // boost::container::small_vector<details::replacement, 4>;
 
 inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = false) {
+
+    if(is_decomposable_hangul(codepoint)) {
+        auto index = hangul_syllable_index(codepoint);
+        auto lpart = hangul_lbase + (index / hangul_ncount);
+        auto vpart = hangul_vbase + (index % hangul_ncount) / hangul_tcount;
+
+        buffer.push_back(replacement{lpart});
+        buffer.push_back(replacement{vpart});
+
+        auto tpart = index % hangul_tcount;
+        if(tpart > 0) {
+            tpart = tpart + hangul_tbase;
+            buffer.push_back(replacement{tpart});
+        }
+        return tpart > 0 ? 3 : 2;
+    }
     const auto rule = details::find_rule_for_code_point(codepoint, canonical);
     int starter = 0;
     for(auto&& replacement : rule.replacements()) {
@@ -298,7 +316,7 @@ inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = fals
         buffer.push_back(replacement);
     }
     return starter;
-}
+}    // namespace unicode::details
 
 template<typename It>
 void canonical_sort(It begin, It end) {
@@ -317,7 +335,7 @@ void canonical_sort(It begin, It end) {
     } while(found);
 }
 
-constexpr int canonical_normalization_mask   = 0x10;
+constexpr int canonical_normalization_mask = 0x10;
 constexpr int composition_normalization_mask = 0x20;
 
 }    // namespace unicode::details
@@ -325,11 +343,10 @@ constexpr int composition_normalization_mask = 0x20;
 namespace unicode {
 
 
-
 enum class NormalizationForm {
-    NFD  = 1 | details::canonical_normalization_mask,
-    NFKD = 2 ,
-    NFC  = 3 | details::canonical_normalization_mask | details::composition_normalization_mask,
+    NFD = 1 | details::canonical_normalization_mask,
+    NFKD = 2,
+    NFC = 3 | details::canonical_normalization_mask | details::composition_normalization_mask,
     NFKC = 4 | details::composition_normalization_mask
 };
 
@@ -338,7 +355,8 @@ int constexpr as_int(NormalizationForm F) {
 }
 
 template<typename It>
-It do_decompose_next(It begin, It end, details::buffer_t& buffer, int & starter_count, bool canonical = true) {
+It do_decompose_next(It begin, It end, details::buffer_t& buffer, int& starter_count,
+                     bool canonical = true) {
     for(auto it = begin; it != end; it++) {
         starter_count += details::decompose(*it, buffer, canonical);
         if(starter_count > 1)
@@ -349,48 +367,83 @@ It do_decompose_next(It begin, It end, details::buffer_t& buffer, int & starter_
 
 inline std::optional<char32_t> find_primary_composite(char32_t c, char32_t l) {
     using namespace details;
-    //find c
-    const auto & jp_table = composable_sequence_jumping_table();
+    // find c
+    const auto& jp_table = composable_sequence_jumping_table();
     const auto it = std::lower_bound(std::begin(jp_table), std::end(jp_table), c);
     if(it == jp_table.end() || it->cp != c)
         return {};
     const auto composable_with_c =
-            ranges::view::slice(composable_sequences(), it->start, it->start+it->count);
+        ranges::view::slice(composable_sequences(), it->start, it->start + it->count);
     const auto jt = std::lower_bound(std::begin(composable_with_c), std::end(composable_with_c), l);
     if(jt == composable_with_c.end() || jt->c != l)
         return {};
 
     return jt->p;
-
 }
 
 inline void composition_algorithm(details::buffer_t& buffer) {
-    const auto end   = std::end(buffer);
+    const auto end = std::end(buffer);
     const auto begin = std::begin(buffer);
     if(end == begin || begin->ccc() != 0)
         return;
     auto starter = begin;
-    for(auto it = begin + 1; it != end;) {
+    for(auto it = begin + 1; it != std::end(buffer);) {
         auto prev = std::prev(it);
-        if (!(prev == starter || (prev->ccc() != 0 && prev->ccc() < it->ccc()))) {
-            if(std::prev(it)->ccc() == 0 )
+        if(!(prev == starter || (prev->ccc() != 0 && prev->ccc() < it->ccc()))) {
+            if(std::prev(it)->ccc() == 0)
                 starter = std::prev(it);
             ++it;
             continue;
         }
-        auto replacement = find_primary_composite(it->codepoint(), starter->codepoint());
-        if(replacement) {
+        if(details::is_hangul_lpart(starter->codepoint())) {
+            const auto lpart = starter->codepoint();
+            const auto vpart = it->codepoint();
+            if(details::is_hangul_vpart(vpart)) {
+                const auto tit = it + 1;
+                const auto tpart =
+                    (tit != std::end(buffer) && details::is_hangul_tpart(tit->codepoint()))
+                        ? tit->codepoint()
+                        : details::hangul_tbase;
+
+                const auto lindex = lpart - details::hangul_lbase;
+                const auto vindex = vpart - details::hangul_vbase;
+                const auto lvindex =
+                    lindex * details::hangul_ncount + vindex * details::hangul_tcount;
+                const auto tindex = tpart - details::hangul_tbase;
+                const auto replacement = details::hangul_sbase + lvindex + tindex;
+
+                *starter = replacement;
+                it = buffer.erase(it, ((tit == std::end(buffer)) ? it : tit));
+                continue;
+            } else {
+                ++it;
+            }
+        } else if(details::is_hangul_tpart(it->codepoint()) &&
+                  details::is_decomposable_hangul(starter->codepoint())) {
+            const auto tindex = it->codepoint() - (details::hangul_tbase);
+            const auto replacement = starter->codepoint() + tindex;
+            *starter = replacement;
+            it = buffer.erase(it);
+            continue;
+        } /* else if(details::is_hangul_vpart(it->codepoint()) &&
+                   details::is_decomposable_hangul(starter->codepoint())) {
+             const auto vindex = it->codepoint() - (details::hangul_vbase);
+             const auto replacement = starter->codepoint() + vindex * details::hangul_tcount;
+             *starter = replacement;
+             it = buffer.erase(it);
+             continue;
+         }*/
+        else if(auto replacement = find_primary_composite(it->codepoint(), starter->codepoint());
+                replacement) {
             *starter = *replacement;
             it = buffer.erase(it);
-        }
-        else {
+        } else {
             ++it;
         }
-
-        if(std::prev(it)->ccc() == 0 )
+        if(std::prev(it)->ccc() == 0)
             starter = std::prev(it);
     }
-}
+}    // namespace unicode
 
 template<typename Rng>
 struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ranges::finite> {
@@ -414,8 +467,7 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
             m_end(end),
             m_starter_count(0),
             m_canonical(as_int(normalization_form) & details::canonical_normalization_mask),
-            m_combine(as_int(normalization_form) & details::composition_normalization_mask)
-        {
+            m_combine(as_int(normalization_form) & details::composition_normalization_mask) {
             m_buffer_pos = std::end(m_buffer);
             decompose_next();
         }
@@ -427,9 +479,9 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
         }
         void next() {
             if(m_buffer_pos->ccc() == 0)
-                m_starter_count --;
+                m_starter_count--;
             m_buffer_pos++;
-            if(m_buffer_pos == std::end(m_buffer) || (m_combine && m_starter_count < 2)) {
+            if(m_buffer_pos == std::end(m_buffer) || (m_combine && m_starter_count < 3)) {
                 decompose_next();
                 return;
             }
@@ -439,17 +491,18 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
 
             m_buffer_pos = m_buffer.erase(std::begin(m_buffer), m_buffer_pos);
 
-            while (m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 2))) {
-                m_it = do_decompose_next(m_it, m_end, m_buffer, m_starter_count, m_canonical);
+            while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3))) {
+
+                while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3)))
+                    m_it = do_decompose_next(m_it, m_end, m_buffer, m_starter_count, m_canonical);
 
                 canonical_sort(std::begin(m_buffer) + dist, std::end(m_buffer));
 
                 if(m_combine) {
                     composition_algorithm(m_buffer);
-                    m_starter_count = std::count_if(std::begin(m_buffer), std::end(m_buffer),
-                                                    [](const details::replacement &c) {
-                        return c.ccc() == 0;
-                    });
+                    m_starter_count =
+                        std::count_if(std::begin(m_buffer), std::end(m_buffer),
+                                      [](const details::replacement& c) { return c.ccc() == 0; });
                 }
             }
 

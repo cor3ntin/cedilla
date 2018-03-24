@@ -41,6 +41,13 @@ namespace unicode::details {
     { 0xFFFFF, 0xFFFFF}
     };
 
+    static const hangul_syllable hangul_data[] = {
+    {{#hangul_syllables}}
+    { {{cp}}, hangul_syllable_type::{{type}}},
+    {{/hangul_syllables}}
+    { 0xFFFFF, hangul_syllable_type(0)}
+    };
+
     ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table() {
        return ranges::view::all(decomposition_jumping_table_data);
     }
@@ -57,7 +64,10 @@ namespace unicode::details {
     }
 
     ranges::iterator_range<const composable_sequence*> composable_sequences() {
-        //char (*__kaboom)[sizeof( recomposition_data )] = 8;
         return ranges::view::all(recomposition_data);
+    }
+
+    ranges::iterator_range<const hangul_syllable*> hangul_syllable_table() {
+        return ranges::view::all(hangul_data);
     }
 }

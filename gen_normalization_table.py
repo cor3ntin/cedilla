@@ -61,6 +61,9 @@ decomposable_chars = {}
 #List of chars that can be decomposed canonically
 canonical_decomposable_chars = {}
 
+#List of hangul syllables
+hangul_syllables = {}
+
 #List of chararcters with an non-zero combining class
 combining_classes = [] # List of <cp, ccc> pairs
 
@@ -111,6 +114,7 @@ for item in unicode_characters_gen():
 
     if isinstance(item, ucd_cp):
         if item.is_hangul():
+            hangul_syllables[item.cp] = item
             continue
         if item.has_decomposition():
             decomposable_chars[item.cp] = item
@@ -203,14 +207,51 @@ def gen_primary_composites():
 
 primary_composites =  gen_primary_composites()
 
+
+def gen_hangul_syllables():
+    keys = sorted(list(hangul_syllables.keys()))
+    first_cp  = keys[0]
+    last_cp   = keys[-1] + 2
+    previous_type = 'NA'
+    syllables = []
+
+    for cp in range(first_cp, last_cp):
+
+        if cp in hangul_syllables:
+            type = hangul_syllables[cp].hst
+        else:
+            type = 'NA'
+
+        if type == previous_type:
+            continue
+
+        if type == 'L':
+            typename = "leading_jamo"
+        elif type == 'V':
+            typename = "vowel_jamo"
+        elif type == 'T':
+            typename = "trailing_jamo"
+        elif type == 'LV':
+            typename = "lv_syllable"
+        elif type == 'LVT':
+            typename = "lvt_syllable"
+        elif type == 'NA':
+            typename = "invalid"
+
+        syllables.append({"cp" : to_hex(cp), "type": typename })
+        previous_type = type
+
+    return syllables
+
 template_data = {
     "total_codepoint_count" : count,
     "total_decompositition_items": total_decompositition_items,
     "blocks" : decomposition_data,
     "block_count" : len(decomposition_data),
     "combining_classes" : combining_classes,
-    "composites_c"   : primary_composites[0],
-    "composites_l_r" : primary_composites[1]
+    "composites_c"     : primary_composites[0],
+    "composites_l_r"   : primary_composites[1],
+    "hangul_syllables" : gen_hangul_syllables()
 }
 
 
@@ -250,8 +291,6 @@ def test_cases():
                 continue
             else:
                 res = regex.match(line)
-                if "HANGUL" in res.group(6):
-                    continue
                 tests.append(test(res.group(1), res.group(2), res.group(3), res.group(4), res.group(5), res.group(6)))
     return tests
 
