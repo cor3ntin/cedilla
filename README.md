@@ -7,7 +7,7 @@ Some unicode algorithms
 - [x] NFDK
 - [x] NF(K)C
 - [ ] Table memory optimization
-- [ ] Hangul
+- [x] Hangul
 - [ ] Use concepts
 - [ ] `text_view` integration
 - [ ] Allocators ?
