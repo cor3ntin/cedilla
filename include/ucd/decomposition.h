@@ -400,10 +400,9 @@ inline void composition_algorithm(details::buffer_t& buffer) {
             const auto vpart = it->codepoint();
             if(details::is_hangul_vpart(vpart)) {
                 const auto tit = it + 1;
-                const auto tpart =
-                    (tit != std::end(buffer) && details::is_hangul_tpart(tit->codepoint()))
-                        ? tit->codepoint()
-                        : details::hangul_tbase;
+                const bool has_tpart =
+                    tit != std::end(buffer) && details::is_hangul_tpart(tit->codepoint());
+                const auto tpart = has_tpart ? tit->codepoint() : details::hangul_tbase;
 
                 const auto lindex = lpart - details::hangul_lbase;
                 const auto vindex = vpart - details::hangul_vbase;
@@ -413,7 +412,7 @@ inline void composition_algorithm(details::buffer_t& buffer) {
                 const auto replacement = details::hangul_sbase + lvindex + tindex;
 
                 *starter = replacement;
-                it = buffer.erase(it, ((tit == std::end(buffer)) ? it : tit) + 1);
+                it = buffer.erase(it, (has_tpart ? tit : it) + 1);
                 continue;
             } else {
                 ++it;

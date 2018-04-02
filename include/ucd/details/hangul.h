@@ -59,6 +59,10 @@ inline bool is_hangul_tpart(char32_t codepoint) {
     return codepoint >= 0x11A7 && codepoint <= 0x11C2;
 }
 
+inline bool is_hangul(char32_t codepoint) {
+    return codepoint >= 0x1100 && codepoint < 0xD800;
+}
+
 inline hangul_syllable_type find_hangul_syllable_type(char32_t codepoint) {
     const auto table = hangul_syllable_table();
     const auto begin = std::begin(table);
