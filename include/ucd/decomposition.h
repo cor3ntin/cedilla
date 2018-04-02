@@ -413,28 +413,27 @@ inline void composition_algorithm(details::buffer_t& buffer) {
                 const auto replacement = details::hangul_sbase + lvindex + tindex;
 
                 *starter = replacement;
-                it = buffer.erase(it, ((tit == std::end(buffer)) ? it : tit));
+                it = buffer.erase(it, ((tit == std::end(buffer)) ? it : tit) + 1);
                 continue;
             } else {
                 ++it;
             }
         } else if(details::is_hangul_tpart(it->codepoint()) &&
                   details::is_decomposable_hangul(starter->codepoint())) {
+
+            auto index = details::hangul_syllable_index(starter->codepoint());
+            if((index % details::hangul_tcount) != 0) {
+                ++it;
+                continue;
+            }
+
             const auto tindex = it->codepoint() - (details::hangul_tbase);
             const auto replacement = starter->codepoint() + tindex;
             *starter = replacement;
             it = buffer.erase(it);
             continue;
-        } /* else if(details::is_hangul_vpart(it->codepoint()) &&
-                   details::is_decomposable_hangul(starter->codepoint())) {
-             const auto vindex = it->codepoint() - (details::hangul_vbase);
-             const auto replacement = starter->codepoint() + vindex * details::hangul_tcount;
-             *starter = replacement;
-             it = buffer.erase(it);
-             continue;
-         }*/
-        else if(auto replacement = find_primary_composite(it->codepoint(), starter->codepoint());
-                replacement) {
+        } else if(auto replacement = find_primary_composite(it->codepoint(), starter->codepoint());
+                  replacement) {
             *starter = *replacement;
             it = buffer.erase(it);
         } else {
