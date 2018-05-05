@@ -1,3 +1,12 @@
 [submodule "range-v3"]
 	path = range-v3
 	url = git@github.com:ericniebler/range-v3.git
+[submodule "benchmark/nonius"]
+	path = benchmark/nonius
+	url = https://github.com/libnonius/nonius
+[submodule "benchmark/unilib"]
+	path = benchmark/unilib
+	url = https://github.com/ufal/unilib
+[submodule "benchmark/ogonek"]
+	path = benchmark/ogonek
+	url = https://github.com/libogonek/ogonek

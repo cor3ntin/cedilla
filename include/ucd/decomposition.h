@@ -60,7 +60,8 @@ composable_sequence_jumping_table();
 ranges::iterator_range<const composable_sequence*> composable_sequences();
 
 
-inline bool operator<(const combining_class_item& cci, char32_t codepoint) {
+inline __attribute__((always_inline)) bool operator<(const combining_class_item& cci,
+                                                     char32_t codepoint) {
     return cci.cp < codepoint;
 }
 
@@ -204,34 +205,36 @@ private:
     rule_size_t m_rule_size;
     const char32_t* m_pos;
     friend struct ranges::v3::range_access;
-
     struct cursor {
     private:
         rule_size_t m_rule_size;
         const char32_t* m_curser_pos;
+        std::make_unsigned_t<size_t> m_factor;
 
     public:
         cursor() = default;
         cursor(rule_size_t rule_size, const char32_t* data) :
             m_rule_size(rule_size),
+            m_factor(factor()),
             m_curser_pos(data) {}
-        rule read() const {
+        __attribute__((always_inline)) rule read() const {
             return rule(m_rule_size, m_curser_pos);
         }
-        bool equal(cursor const& other) const {
+
+        __attribute__((always_inline)) bool equal(cursor const& other) const {
             return m_curser_pos == other.m_curser_pos;
         }
-        void next() {
-            m_curser_pos += factor();
+        __attribute__((always_inline)) void next() {
+            m_curser_pos += m_factor;
         }
         void prev() {
-            m_curser_pos -= factor();
+            m_curser_pos -= m_factor;
         }
         std::ptrdiff_t distance_to(cursor const& other) const {
-            return (other.m_curser_pos - m_curser_pos) / factor();
+            return (other.m_curser_pos - m_curser_pos) / m_factor;
         }
         void advance(std::ptrdiff_t n) {
-            m_curser_pos += n * factor();
+            m_curser_pos += n * m_factor;
         }
 
         std::make_unsigned_t<size_t> factor(size_t n = 1) const {
@@ -292,13 +295,13 @@ inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = fals
         auto lpart = hangul_lbase + (index / hangul_ncount);
         auto vpart = hangul_vbase + (index % hangul_ncount) / hangul_tcount;
 
-        buffer.push_back(replacement{lpart});
-        buffer.push_back(replacement{vpart});
+        buffer.emplace_back(replacement{lpart});
+        buffer.emplace_back(replacement{vpart});
 
         auto tpart = index % hangul_tcount;
         if(tpart > 0) {
             tpart = tpart + hangul_tbase;
-            buffer.push_back(replacement{tpart});
+            buffer.emplace_back(replacement{tpart});
         }
         return tpart > 0 ? 3 : 2;
     }
@@ -313,7 +316,7 @@ inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = fals
         }
         if(replacement.ccc() == 0)
             starter++;
-        buffer.push_back(replacement);
+        buffer.emplace_back(std::move(replacement));
     }
     return starter;
 }    // namespace unicode::details
@@ -459,14 +462,17 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
         bool m_combine;
 
     public:
-        cursor() = default;
+        cursor() {
+            std::terminate();
+        }
         cursor(RngIt begin, RngIt end, NormalizationForm normalization_form) :
             m_it(begin),
             m_end(end),
             m_starter_count(0),
             m_canonical(as_int(normalization_form) & details::canonical_normalization_mask),
             m_combine(as_int(normalization_form) & details::composition_normalization_mask) {
-            m_buffer_pos = std::end(m_buffer);
+
+            m_buffer_pos = std::begin(m_buffer);
             decompose_next();
         }
         char32_t read() const {
@@ -486,8 +492,7 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
         }
         void decompose_next() {
             const auto dist = std::distance(m_buffer_pos, std::end(m_buffer));
-
-            m_buffer_pos = m_buffer.erase(std::begin(m_buffer), m_buffer_pos);
+            m_buffer.erase(std::begin(m_buffer), m_buffer_pos);
 
             while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3))) {
 
