@@ -23,10 +23,5 @@ inline std::ostream& operator << ( std::ostream& os, std::u32string const& value
 #include <catch2/catch.hpp>
 
 TEST_CASE("Sort") {
-    SECTION( R"__( (Ǆ; Ǆ; Ǆ; DŽ; DZ◌̌; ) LATIN CAPITAL LETTER DZ WITH CARON)__" ) {
-            //NFC
-             //CHECK(std::u32string{U"\U00000044\U0000017D"} == normalized(U"\U00000044\U0000005A\U0000030C", NormalizationForm::NFKC));
-         CHECK(std::u32string{U"\U00000DDD"} == normalized(U"\U00000DD9\U00000DCF\U00000DCA", NormalizationForm::NFC));
-}
-
-}
+   CHECK( std::u32string{U"\U0000D750\U00000334\U000011B5"} == normalized(U"\U00001112\U00001173\U00000334\U000011B5", NormalizationForm::NFKC) );
+       }

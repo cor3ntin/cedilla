@@ -6,7 +6,7 @@ find_package(PythonInterp 3 REQUIRED)
 
 include_directories(/home/cor3ntin/dev/boost_1_66_0 include ${CMAKE_BINARY_DIR}/generated/include range-v3/include/ tests/include)
 
-foreach(val RANGE 0 70)
+foreach(val RANGE 0 7)
     list(APPEND GENERATED_NORMALIZATIONS_TEST_CPP "${CMAKE_BINARY_DIR}/generated/test_decomposition_${val}.cpp")
 endforeach()
 

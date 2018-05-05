@@ -303,7 +303,7 @@ def chunks(l, n):
 def generate_normalization_tests():
     with open(os.path.join(DIR, "tpl", "test_decomposition.cpp.tpl"), 'r') as f:
         template = f.read()
-        for idx, tests in enumerate(chunks(test_cases(), 100)):
+        for idx, tests in enumerate(chunks(test_cases(), 2500)):
             with open(os.path.join("generated", "test_decomposition_{}.cpp".format(idx)), 'w') as out:
                 out.write(pystache.render(template, {"tests" : tests, "idx" : idx } ))
 
