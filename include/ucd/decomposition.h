@@ -19,7 +19,9 @@ struct decomposition_jumping_table_item {
     // Number of rules in the block
     uint16_t count;
     // Numbers of replacement characters. Each element is rule_size + 1 in size
-    uint16_t rule_size;
+    uint8_t rule_size;
+
+    bool has_canonical;
 };
 
 //
@@ -285,6 +287,10 @@ make_view(std::remove_reference_t<
 
 inline rule find_rule_for_code_point(char32_t codepoint, bool canonical) {
     auto it = get_block_start(codepoint);
+    if(canonical && !it->has_canonical) {
+        return rule{codepoint};
+    }
+
     // TODO : assert if it == end
     auto view = make_view(it);
     auto needle = std::lower_bound(std::begin(view), std::end(view), codepoint);

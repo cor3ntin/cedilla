@@ -174,6 +174,7 @@ for block in packed(list(blocks.values())):
             "chars" : [char_to_dict(char, replacements) for char in block],
             "start" : total_decompositition_items,
             "size"  : len(block),
+            "has_canonical" : "true" if len([c for c in block if c.cp in canonical_decomposable_chars]) > 0 else "false",
             "comma" : True,
             "number_of_replacements": replacements,
     }

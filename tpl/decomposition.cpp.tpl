@@ -3,7 +3,7 @@
 namespace unicode::details {
     static const std::array<decomposition_jumping_table_item, {{block_count}}+1> decomposition_jumping_table_data = {
         {{#blocks}}
-        decomposition_jumping_table_item{ {{first}}, {{start}}, {{size}}, {{number_of_replacements}} },  //{{name}} [{{first}}, {{last}}]
+        decomposition_jumping_table_item{ {{first}}, {{start}}, {{size}}, {{number_of_replacements}}, {{has_canonical}}},  //{{name}} [{{first}}, {{last}}]
         {{/blocks}}
         decomposition_jumping_table_item{ 0x0F0000, 0, 0, 0} //End sentinel
     };
@@ -48,26 +48,33 @@ namespace unicode::details {
     { 0xFFFFF, hangul_syllable_type(0)}
     };
 
-    ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table() {
-       return ranges::view::all(decomposition_jumping_table_data);
+    const ranges::iterator_range<const decomposition_jumping_table_item*> & decomposition_jumping_table() {
+       static const auto v = ranges::view::all(decomposition_jumping_table_data);
+       return v;
     }
 
-    ranges::iterator_range<const char32_t*> decomposition_rules() {
-        return ranges::view::all(decomposition_rules_data);
-    }
-    ranges::iterator_range<const combining_class_item*> combining_classes() {
-        return ranges::view::all(combining_classes_data);
+    const ranges::iterator_range<const char32_t*> & decomposition_rules() {
+        static const auto v = ranges::view::all(decomposition_rules_data);
+        return v;
     }
 
-    ranges::iterator_range<const composable_sequence_jumping_table_item*> composable_sequence_jumping_table() {
-        return ranges::view::all(composable_sequence_jumping_table_data);
+    const ranges::iterator_range<const combining_class_item*> & combining_classes() {
+        static const auto v = ranges::view::all(combining_classes_data);
+        return v;
     }
 
-    ranges::iterator_range<const composable_sequence*> composable_sequences() {
-        return ranges::view::all(recomposition_data);
+    const ranges::iterator_range<const composable_sequence_jumping_table_item*> & composable_sequence_jumping_table() {
+        static const auto v = ranges::view::all(composable_sequence_jumping_table_data);
+        return v;
     }
 
-    ranges::iterator_range<const hangul_syllable*> hangul_syllable_table() {
-        return ranges::view::all(hangul_data);
+    const ranges::iterator_range<const composable_sequence*> & composable_sequences() {
+        static const auto v = ranges::view::all(recomposition_data);
+        return v;
+    }
+
+    const ranges::iterator_range<const hangul_syllable*> & hangul_syllable_table() {
+        static const auto v = ranges::view::all(hangul_data);
+        return v;
     }
 }
