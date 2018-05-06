@@ -184,7 +184,7 @@ public:
                 return replacement(*m_pos);
             }
             bool equal(ranges::v3::default_sentinel) const {
-                return !m_pos || *m_pos == nil_cp || m_pos == m_start + m_rule_size;
+                return m_pos == m_start + m_rule_size || BOOST_UNLIKELY(*m_pos == nil_cp);
             }
             void next() {
                 m_pos++;
