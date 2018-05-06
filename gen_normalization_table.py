@@ -138,33 +138,52 @@ for _, chars in blocks.items():
                     canonical_decomposable_chars[cp] = decomposable_chars[cp]
 
 
-for block, chars in blocks.items():
+def packed(blocks):
+    current_block_size = -1
+    packed_blocks = []
+    current_block = None
+    for block in blocks:
+        for char in block:
+            if current_block == None or current_block_size != len(char.decomposition_sequence()) or len(current_block) * (current_block_size + 1)  >= 64:
+                current_block_size = len(char.decomposition_sequence())
+                if current_block:
+                    packed_blocks.append(current_block)
+                current_block = []
+            current_block.append(char)
+
+    if current_block:
+        packed_blocks.append(current_block)
+    return packed_blocks
+
+for block in packed(list(blocks.values())):
     #chars = [char for char in chars if char.cp in canonical_decomposable_chars]
-    if len(chars) == 0:
+    if len(block) == 0:
         continue
 
 
     #find the name of the actual block
-    first_char       = chars[0].cp
+    first_char       = block[0].cp
     block_data       = find_block(first_char)
 
-    replacements = max(len(char.decomposition_sequence()) for char in chars)
+    replacements = max(len(char.decomposition_sequence()) for char in block)
 
     #Map to the actual block name
     dec = { "name"  : block_data.name,
-            "first" : to_hex(block_data.first),
-            "last"  : to_hex(block_data.last),
-            "chars" : [char_to_dict(char, replacements) for char in chars],
+            "first" : to_hex(block[0].cp),
+            "last"  : to_hex(block[-1].cp),
+            "chars" : [char_to_dict(char, replacements) for char in block],
             "start" : total_decompositition_items,
-            "size"  : len(chars),
+            "size"  : len(block),
             "comma" : True,
             "number_of_replacements": replacements,
     }
 
-    count = count + len(chars)
-    total_decompositition_items = total_decompositition_items + len(chars) * (replacements +1)
+    count = count + len(block)
+    total_decompositition_items = total_decompositition_items + len(block) * (replacements +1)
 
     decomposition_data.append(dec);
+
+
 del decomposition_data[-1]["comma"]
 
 def gen_primary_composites():
