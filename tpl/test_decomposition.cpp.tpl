@@ -4,6 +4,9 @@
 #define CATCH_CONFIG_DISABLE_MATCHERS
 
 
+
+using namespace unicode;
+
 template <typename I> std::string n2hexstr(I w, size_t hex_len = sizeof(I)<<1) {
     static const char* digits = "0123456789ABCDEF";
     std::string rc(hex_len,'0');
@@ -19,8 +22,9 @@ inline std::ostream& operator << ( std::ostream& os, std::u32string const& value
     return os;
 }
 
-
 #include <catch2/catch.hpp>
+#include <string>
+#include <iostream>
 
 struct test_data {
     std::u32string c1, c2, c3, c4, c5;
@@ -33,7 +37,6 @@ static const test_data data[] = {
     {}
 };
 
-using namespace unicode;
 
 TEST_CASE( "Normalization tests {{idx}}") {
 

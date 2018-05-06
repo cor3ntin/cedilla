@@ -17,19 +17,44 @@ int main() {
 #    define NONIUS_RUNNER
 #    include <nonius/nonius_single.h++>
 
+
 NONIUS_BENCHMARK("ucd_nfd-nfc", [](nonius::chronometer meter) {
     auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
     meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFC); });
 })
 
+NONIUS_BENCHMARK("ucd_nfd-nfd", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFD); });
+})
+
+NONIUS_BENCHMARK("ucd_nfc-nfc", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFC); });
+})
 
 NONIUS_BENCHMARK("ucd_nfc-nfd", [](nonius::chronometer meter) {
     auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
     meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFD); });
 })
 
+
+/////
+////
+
+
 NONIUS_BENCHMARK("unilib_nfd-nfc", [](nonius::chronometer meter) {
     auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    meter.measure([&]() { ufal::unilib::uninorms::nfc(str); });
+})
+
+NONIUS_BENCHMARK("unilib_nfd-nfd", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    meter.measure([&]() { ufal::unilib::uninorms::nfd(str); });
+})
+
+NONIUS_BENCHMARK("unilib_nfc-nfc", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
     meter.measure([&]() { ufal::unilib::uninorms::nfc(str); });
 })
 
@@ -38,9 +63,15 @@ NONIUS_BENCHMARK("unilib_nfc-nfd", [](nonius::chronometer meter) {
     meter.measure([&]() { ufal::unilib::uninorms::nfd(str); });
 })
 
+
+/////
+/////
+/////
+
 template<typename NormalizationForm>
 inline std::u32string ogonek_normalized(const std::u32string& in) {
     std::u32string str;
+    str.reserve(in.size());
     auto r = ogonek::normalize<NormalizationForm>(in);
     unicode::copy(r, std::back_inserter(str));
     return str;
@@ -48,6 +79,16 @@ inline std::u32string ogonek_normalized(const std::u32string& in) {
 
 NONIUS_BENCHMARK("ogonek_nfd-nfc", [](nonius::chronometer meter) {
     auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    meter.measure([&]() { ogonek_normalized<ogonek::nfc>(str); });
+})
+
+NONIUS_BENCHMARK("ogonek_nfd-nfd", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    meter.measure([&]() { ogonek_normalized<ogonek::nfd>(str); });
+})
+
+NONIUS_BENCHMARK("ogonek_nfc-nfc", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
     meter.measure([&]() { ogonek_normalized<ogonek::nfc>(str); });
 })
 

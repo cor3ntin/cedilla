@@ -58,7 +58,7 @@ decomposition_jumping_table();
 // Implementation is generated from unicode data
 const ranges::iterator_range<const char32_t*>& decomposition_rules();
 // Implementation is generated from unicode data
-const ranges::iterator_range<const combining_class_item*>& combining_classes();
+// const ranges::iterator_range<const combining_class_item*>& combining_classes();
 
 const ranges::iterator_range<const composable_sequence_jumping_table_item*>&
 composable_sequence_jumping_table();
@@ -66,30 +66,27 @@ composable_sequence_jumping_table();
 const ranges::iterator_range<const composable_sequence*>& composable_sequences();
 
 
-inline __attribute__((always_inline)) bool operator<(const combining_class_item& cci,
-                                                     char32_t codepoint) {
+bool is_nfc(char32_t c);
+bool is_nfkc(char32_t c);
+bool is_nfd(char32_t c);
+bool is_nfkd(char32_t c);
+
+
+BOOST_FORCEINLINE bool operator<(const combining_class_item& cci, char32_t codepoint) {
     return cci.cp < codepoint;
 }
 
-inline __attribute__((always_inline)) bool
-operator<(const composable_sequence_jumping_table_item& i, char32_t codepoint) {
+BOOST_FORCEINLINE bool operator<(const composable_sequence_jumping_table_item& i,
+                                 char32_t codepoint) {
     return i.cp < codepoint;
 }
 
-inline __attribute__((always_inline)) bool operator<(const composable_sequence& cs,
-                                                     char32_t codepoint) {
+BOOST_FORCEINLINE bool operator<(const composable_sequence& cs, char32_t codepoint) {
     return cs.c < codepoint;
 }
 
 
-inline uint8_t combining_class(char32_t codepoint) {
-    const auto ccc_data = combining_classes();
-    const auto end = std::end(ccc_data);
-    auto it = std::lower_bound(std::begin(ccc_data), end, codepoint);
-    if(it == end || it->cp != codepoint)
-        return 0;
-    return it->ccc;
-}
+uint8_t combining_class(char32_t codepoint);
 
 class replacement {
     char32_t m_cp;
@@ -105,9 +102,7 @@ class replacement {
 
 public:
     replacement() = delete;
-    replacement(char32_t cp) : m_cp(cp) {
-        m_ccc = combining_class(codepoint());
-    }
+    replacement(char32_t cp) : m_cp(cp), m_ccc(combining_class(codepoint())) {}
 
     char32_t codepoint() const {
         return m_cp & ~(composed_bitmask);
@@ -230,19 +225,18 @@ private:
             m_rule_size(rule_size),
             m_factor(factor()),
             m_curser_pos(data) {}
-        __attribute__((always_inline)) rule read() const {
+        BOOST_FORCEINLINE rule read() const {
             return rule(m_rule_size, m_curser_pos);
         }
 
-        __attribute__((always_inline)) bool equal(cursor const& other) const {
+        BOOST_FORCEINLINE bool equal(cursor const& other) const {
             return m_curser_pos == other.m_curser_pos;
         }
-        __attribute__((always_inline)) void next() {
+
+        BOOST_FORCEINLINE void next() {
             m_curser_pos += m_factor;
         }
-        void prev() {
-            m_curser_pos -= m_factor;
-        }
+
         std::ptrdiff_t distance_to(cursor const& other) const {
             return (other.m_curser_pos - m_curser_pos) / m_factor;
         }
@@ -307,7 +301,6 @@ using buffer_t = boost::container::small_vector<details::replacement, 6>;
 // using buffer_t = std::vector<details::replacement>;
 
 inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = false) {
-
     if(is_decomposable_hangul(codepoint)) {
         auto index = hangul_syllable_index(codepoint);
         auto lpart = hangul_lbase + (index / hangul_ncount);
@@ -323,11 +316,16 @@ inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = fals
         }
         return tpart > 0 ? 3 : 2;
     }
-    const rule r = details::find_rule_for_code_point(codepoint, canonical);
+
+    bool quick_check =
+        !is_hangul(codepoint) && (canonical ? is_nfd(codepoint) : is_nfkd(codepoint));
+    const rule r =
+        quick_check ? rule{codepoint} : details::find_rule_for_code_point(codepoint, canonical);
+
     int starter = 0;
+
     for(auto replacement : r.replacements()) {
-        auto c = replacement.codepoint();
-        if(replacement.is_composed()) {
+        if(BOOST_UNLIKELY(replacement.is_composed())) {
             starter += details::decompose(replacement.codepoint(), buffer,
                                           canonical);    // consider everything when recursing
             continue;
@@ -500,8 +498,7 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
         void next() {
             if(m_buffer.at(m_buffer_pos).ccc() == 0)
                 m_starter_count--;
-            auto b = std::begin(m_buffer);
-            auto e = std::end(m_buffer);
+
             m_buffer_pos++;
             if(m_buffer_pos == m_buffer.size() || (m_combine && m_starter_count < 3)) {
                 decompose_next();
@@ -513,6 +510,29 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
                 std::distance(std::begin(m_buffer) + m_buffer_pos, std::end(m_buffer));
             m_buffer.erase(std::begin(m_buffer), std::begin(m_buffer) + m_buffer_pos);
             m_buffer_pos = 0;
+
+            if(m_combine) {
+                uint8_t ccc = 0;
+                auto saved_it = m_it;
+                while(m_it != m_end) {
+                    // We found a new starter, copy the character before it
+                    auto c_ccc = details::combining_class(*m_it);
+                    if(m_it != saved_it && c_ccc == 0) {
+                        std::copy(saved_it, m_it, std::back_inserter(m_buffer));
+                        saved_it = m_it;
+                        m_starter_count++;
+                    }
+                    auto is_nfc = [this]() {
+                        return m_canonical ? details::is_nfc(*m_it) : details::is_nfkc(*m_it);
+                    };
+                    if((ccc > c_ccc && c_ccc != 0) || !is_nfc()) {
+                        break;
+                    }
+                    ccc = c_ccc;
+                    m_it++;
+                }
+                m_it = saved_it;
+            }
 
             while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3))) {
                 m_it = do_decompose_next(m_it, m_end, m_buffer, m_starter_count, m_canonical);

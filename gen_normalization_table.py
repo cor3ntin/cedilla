@@ -27,6 +27,10 @@ class ucd_cp:
         self.block   = char.get("blk")
         self.ccc     = int(char.get("ccc"))
         self.Comp_Ex = char.get("Comp_Ex") == 'Y'
+        self.NFC_QC  = char.get("NFC_QC") == 'Y'
+        self.NFKC_QC = char.get("NFKC_QC") == 'Y'
+        self.NFD_QC  = char.get("NFD_QC") == 'Y'
+        self.NFKD_QC = char.get("NFKD_QC") == 'Y'
 
     def has_decomposition(self):
         return self.dm != '#'
@@ -57,6 +61,9 @@ blocks      = {}
 
 #List of chars that can be decomposed
 decomposable_chars = {}
+
+#list of all chars
+all_chars = []
 
 #List of chars that can be decomposed canonically
 canonical_decomposable_chars = {}
@@ -113,6 +120,7 @@ for item in unicode_characters_gen():
         continue
 
     if isinstance(item, ucd_cp):
+        all_chars.append(item)
         if item.is_hangul():
             hangul_syllables[item.cp] = item
             continue
@@ -123,6 +131,7 @@ for item in unicode_characters_gen():
             canonical_decomposable_chars[item.cp] = item
         if item.ccc != 0:
             combining_classes.append({"cp" : to_hex(item.cp, 6), "ccc" : item.ccc })
+
 
 
 decomposition_data = []
@@ -263,22 +272,48 @@ def gen_hangul_syllables():
 
     return syllables
 
+
+def gen_trie_table(char_list):
+    jump_table = []
+    for i in range(256):
+        jump_table.append([])
+
+    for char in char_list:
+        cp = int(char.cp)
+        idx = cp & 0xff
+        jump_table[idx].append(char)
+    pos = 0
+    data = []
+    starts = []
+    for jump_table_item in jump_table:
+        starts.append({"idx" : pos })
+        pos  += len(jump_table_item)
+        for char in jump_table_item:
+            data.append({"cp" : to_hex(char.cp >> 8, 4), "ccc" : char.ccc })
+    return  {"starts" : starts, "data" : data}
+
+print("nfd", sum([1 for char in all_chars if not char.NFD_QC and not char.is_hangul()]))
+print("nfdk", sum([1 for char in all_chars if not char.NFKD_QC and not char.is_hangul()]))
+
 template_data = {
     "total_codepoint_count" : count,
     "total_decompositition_items": total_decompositition_items,
     "blocks" : decomposition_data,
     "block_count" : len(decomposition_data),
-    "combining_classes" : combining_classes,
+    "combining_classes" : gen_trie_table([char for char in all_chars if char.ccc != 0]),
     "composites_c"     : primary_composites[0],
     "composites_l_r"   : primary_composites[1],
-    "hangul_syllables" : gen_hangul_syllables()
+    "hangul_syllables" : gen_hangul_syllables(),
+    "nfc_qc"  :  gen_trie_table([char for char in all_chars if not char.NFC_QC]) ,
+    "nfkc_qc" :  gen_trie_table([char for char in all_chars if not char.NFKC_QC]),
+    "nfd_qc"  :  gen_trie_table([char for char in all_chars if not char.NFD_QC and not char.is_hangul()]) ,
+    "nfkd_qc" :  gen_trie_table([char for char in all_chars if not char.NFKD_QC and not char.is_hangul()])
 }
 
 
 #Source file
 import pathlib
 pathlib.Path(os.path.join("generated", "include", "ucd", "details")).mkdir(parents=True, exist_ok=True)
-
 
 with open(os.path.join(DIR, "tpl", "decomposition.cpp.tpl"), 'r') as f:
     template = f.read()
@@ -323,7 +358,7 @@ def chunks(l, n):
 def generate_normalization_tests():
     with open(os.path.join(DIR, "tpl", "test_decomposition.cpp.tpl"), 'r') as f:
         template = f.read()
-        for idx, tests in enumerate(chunks(test_cases(), 2500)):
+        for idx, tests in enumerate(chunks(test_cases(), 500)):
             with open(os.path.join("generated", "test_decomposition_{}.cpp".format(idx)), 'w') as out:
                 out.write(pystache.render(template, {"tests" : tests, "idx" : idx } ))
 
