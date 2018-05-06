@@ -7,6 +7,7 @@
 #include <range/v3/view.hpp>
 #include <range/v3/view/all.hpp>
 #include <ucd/details/hangul.h>
+#include <type_traits>
 
 namespace unicode::details {
 
@@ -50,14 +51,17 @@ constexpr char32_t canonical_bitmask = 0x80000000;
 // Implementation is generated from unicode data
 // We split the data per code blocks to improve caching
 // Also, the number of replacement depends on the block
-ranges::iterator_range<const decomposition_jumping_table_item*> decomposition_jumping_table();
+const ranges::iterator_range<const decomposition_jumping_table_item*>&
+decomposition_jumping_table();
 // Implementation is generated from unicode data
-ranges::iterator_range<const char32_t*> decomposition_rules();
+const ranges::iterator_range<const char32_t*>& decomposition_rules();
 // Implementation is generated from unicode data
-ranges::iterator_range<const combining_class_item*> combining_classes();
-ranges::iterator_range<const composable_sequence_jumping_table_item*>
+const ranges::iterator_range<const combining_class_item*>& combining_classes();
+
+const ranges::iterator_range<const composable_sequence_jumping_table_item*>&
 composable_sequence_jumping_table();
-ranges::iterator_range<const composable_sequence*> composable_sequences();
+
+const ranges::iterator_range<const composable_sequence*>& composable_sequences();
 
 
 inline __attribute__((always_inline)) bool operator<(const combining_class_item& cci,
@@ -65,14 +69,15 @@ inline __attribute__((always_inline)) bool operator<(const combining_class_item&
     return cci.cp < codepoint;
 }
 
-inline bool operator<(const composable_sequence_jumping_table_item& i, char32_t codepoint) {
+inline __attribute__((always_inline)) bool
+operator<(const composable_sequence_jumping_table_item& i, char32_t codepoint) {
     return i.cp < codepoint;
 }
 
-inline bool operator<(const composable_sequence& cs, char32_t codepoint) {
+inline __attribute__((always_inline)) bool operator<(const composable_sequence& cs,
+                                                     char32_t codepoint) {
     return cs.c < codepoint;
 }
-
 
 
 inline uint8_t combining_class(char32_t codepoint) {
@@ -97,6 +102,7 @@ class replacement {
     }
 
 public:
+    replacement() = delete;
     replacement(char32_t cp) : m_cp(cp) {
         m_ccc = combining_class(codepoint());
     }
@@ -114,6 +120,45 @@ public:
 };
 
 class rule {
+public:
+    rule(rule_size_t rule_size, const char32_t* const data) : m_rule_size(rule_size) {
+        u.data = data;
+    }
+    rule(char32_t codepoint) : m_rule_size(0) {
+        u.data = nullptr;
+        u.codepoint = codepoint;
+    }
+
+    rule(const rule& other) = default;
+    rule(rule&& other) = default;
+
+    char32_t codepoint() const {
+        // if(unlikely(m_rule_size == 0))
+        //    return u.codepoint;
+        return (*u.data) & ~(canonical_bitmask);
+    }
+
+    bool is_canonical() const {
+        // if(m_rule_size == 0)
+        //    return true;
+        return (*u.data) & canonical_bitmask;
+    }
+
+    auto replacements() const {
+        if(m_rule_size == 0) {
+            return replacements_view(&u.codepoint, 1);
+        }
+        return replacements_view(u.data + 1, m_rule_size);
+    }
+
+
+private:
+    const rule_size_t m_rule_size;
+    union {
+        const char32_t* data;
+        char32_t codepoint;
+    } u;
+
 public:
     class replacements_view : public ranges::v3::view_facade<replacements_view, ranges::finite> {
     public:
@@ -133,7 +178,7 @@ public:
             rule_size_t m_rule_size;
 
         public:
-            cursor() = default;
+            cursor() : m_pos(nullptr), m_start(nullptr), m_rule_size(0) {}
             cursor(const char32_t* data, rule_size_t rule_size) :
                 m_pos(data),
                 m_start(data),
@@ -142,49 +187,15 @@ public:
                 return replacement(*m_pos);
             }
             bool equal(ranges::v3::default_sentinel) const {
-                return *m_pos == nil_cp || m_pos == m_start + m_rule_size;
+                return !m_pos || *m_pos == nil_cp || m_pos == m_start + m_rule_size;
             }
             void next() {
                 m_pos++;
             }
-            void prev() {
-                m_pos--;
-            }
         };
         cursor begin_cursor() const {
-            return {m_start, m_rule_size};
+            return cursor(m_start, m_rule_size);
         }
-    };
-
-    rule(rule_size_t rule_size, const char32_t* const data) :
-        m_rule_size(rule_size),
-        m_data(data) {}
-    rule(char32_t codepoint) : m_rule_size(0), m_codepoint(codepoint) {}
-
-    char32_t codepoint() const {
-        if(m_rule_size == 0)
-            return m_codepoint;
-        return (*m_data) & ~(canonical_bitmask);
-    }
-
-    bool is_canonical() const {
-        if(m_rule_size == 0)
-            return true;
-        return (*m_data) & canonical_bitmask;
-    }
-
-    auto replacements() const {
-        if(m_rule_size == 0) {
-            return replacements_view(&m_codepoint, 1);
-        }
-        return replacements_view(m_data + 1, m_rule_size);
-    }
-
-private:
-    const rule_size_t m_rule_size;
-    union {
-        const char32_t* const m_data;
-        const char32_t m_codepoint;
     };
 };
 
@@ -250,30 +261,31 @@ private:
 };
 
 inline auto get_block_start(char32_t codepoint) {
-    const auto jp = decomposition_jumping_table();
-
+    static const auto& jp = decomposition_jumping_table();
     const auto begin = std::begin(jp);
     const auto end = std::end(jp);
+
     auto needle = std::lower_bound(begin, end, codepoint,
                                    [](const decomposition_jumping_table_item& entry,
-                                      const char32_t value) { return entry.cp < value; });
+                                      const char32_t& value) { return entry.cp < value; });
     if(needle->cp > codepoint && needle != begin)
         return needle - 1;
     return needle;
 }
 
-inline auto make_view(decltype(decomposition_jumping_table())::const_iterator& iterator) {
-    const auto rules = decomposition_rules();
+inline auto
+make_view(std::remove_reference_t<
+          std::remove_cv_t<decltype(decomposition_jumping_table())>>::const_iterator& iterator) {
+    static const auto& rules = decomposition_rules();
     const auto begin = std::begin(rules) + iterator->start;
     const auto count = iterator->count;
     const auto rule_size = iterator->rule_size;
     return decomposition_view(rule_size, begin, count);
 }
 
-inline auto find_rule_for_code_point(char32_t codepoint, bool canonical) {
+inline rule find_rule_for_code_point(char32_t codepoint, bool canonical) {
     auto it = get_block_start(codepoint);
-    if(it == decomposition_jumping_table().end())
-        return rule{codepoint};
+    // TODO : assert if it == end
     auto view = make_view(it);
     auto needle = std::lower_bound(std::begin(view), std::end(view), codepoint);
     if(needle == std::end(view)) {
@@ -285,8 +297,8 @@ inline auto find_rule_for_code_point(char32_t codepoint, bool canonical) {
     return *needle;
 }
 
-using buffer_t =
-    std::vector<replacement>;    // boost::container::small_vector<details::replacement, 4>;
+using buffer_t = boost::container::small_vector<details::replacement, 6>;
+// using buffer_t = std::vector<details::replacement>;
 
 inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = false) {
 
@@ -305,9 +317,9 @@ inline int decompose(char32_t codepoint, buffer_t& buffer, bool canonical = fals
         }
         return tpart > 0 ? 3 : 2;
     }
-    const auto rule = details::find_rule_for_code_point(codepoint, canonical);
+    const rule r = details::find_rule_for_code_point(codepoint, canonical);
     int starter = 0;
-    for(auto&& replacement : rule.replacements()) {
+    for(auto replacement : r.replacements()) {
         auto c = replacement.codepoint();
         if(replacement.is_composed()) {
             starter += details::decompose(replacement.codepoint(), buffer,
@@ -393,8 +405,8 @@ inline void composition_algorithm(details::buffer_t& buffer) {
     for(auto it = begin + 1; it != std::end(buffer);) {
         auto prev = std::prev(it);
         if(!(prev == starter || (prev->ccc() != 0 && prev->ccc() < it->ccc()))) {
-            if(std::prev(it)->ccc() == 0)
-                starter = std::prev(it);
+            // if(std::prev(it)->ccc() == 0)
+            //     starter = std::prev(it);
             ++it;
             continue;
         }
@@ -434,8 +446,8 @@ inline void composition_algorithm(details::buffer_t& buffer) {
             *starter = replacement;
             it = buffer.erase(it);
             continue;
-        } else if(auto replacement = find_primary_composite(it->codepoint(), starter->codepoint());
-                  replacement) {
+        } else if(auto replacement =
+                      find_primary_composite(it->codepoint(), starter->codepoint())) {
             *starter = *replacement;
             it = buffer.erase(it);
         } else {
@@ -456,15 +468,13 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
         using RngIt = typename Rng::const_iterator;
         RngIt m_it, m_end;
         details::buffer_t m_buffer;
-        details::buffer_t::iterator m_buffer_pos;
+        std::size_t m_buffer_pos;
         int m_starter_count;
         bool m_canonical;
         bool m_combine;
 
     public:
-        cursor() {
-            std::terminate();
-        }
+        cursor() = default;
         cursor(RngIt begin, RngIt end, NormalizationForm normalization_form) :
             m_it(begin),
             m_end(end),
@@ -472,44 +482,45 @@ struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ran
             m_canonical(as_int(normalization_form) & details::canonical_normalization_mask),
             m_combine(as_int(normalization_form) & details::composition_normalization_mask) {
 
-            m_buffer_pos = std::begin(m_buffer);
+            m_buffer_pos = 0;
             decompose_next();
         }
         char32_t read() const {
-            return m_buffer_pos->codepoint();
+            return m_buffer.at(m_buffer_pos).codepoint();
         }
         bool equal(ranges::default_sentinel) const {
             return (m_it == m_end) && m_buffer.empty();
         }
         void next() {
-            if(m_buffer_pos->ccc() == 0)
+            if(m_buffer.at(m_buffer_pos).ccc() == 0)
                 m_starter_count--;
+            auto b = std::begin(m_buffer);
+            auto e = std::end(m_buffer);
             m_buffer_pos++;
-            if(m_buffer_pos == std::end(m_buffer) || (m_combine && m_starter_count < 3)) {
+            if(m_buffer_pos == m_buffer.size() || (m_combine && m_starter_count < 3)) {
                 decompose_next();
                 return;
             }
         }
         void decompose_next() {
-            const auto dist = std::distance(m_buffer_pos, std::end(m_buffer));
-            m_buffer.erase(std::begin(m_buffer), m_buffer_pos);
+            const auto dist =
+                std::distance(std::begin(m_buffer) + m_buffer_pos, std::end(m_buffer));
+            m_buffer.erase(std::begin(m_buffer), std::begin(m_buffer) + m_buffer_pos);
+            m_buffer_pos = 0;
 
             while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3))) {
+                m_it = do_decompose_next(m_it, m_end, m_buffer, m_starter_count, m_canonical);
+            }
+            canonical_sort(std::begin(m_buffer) + dist, std::end(m_buffer));
 
-                while(m_it != m_end && (m_buffer.empty() || (m_combine && m_starter_count < 3)))
-                    m_it = do_decompose_next(m_it, m_end, m_buffer, m_starter_count, m_canonical);
-
-                canonical_sort(std::begin(m_buffer) + dist, std::end(m_buffer));
-
-                if(m_combine) {
-                    composition_algorithm(m_buffer);
-                    m_starter_count =
-                        std::count_if(std::begin(m_buffer), std::end(m_buffer),
-                                      [](const details::replacement& c) { return c.ccc() == 0; });
-                }
+            if(m_combine) {
+                composition_algorithm(m_buffer);
+                m_starter_count =
+                    std::count_if(std::begin(m_buffer), std::end(m_buffer),
+                                  [](const details::replacement& c) { return c.ccc() == 0; });
             }
 
-            m_buffer_pos = std::begin(m_buffer);
+            m_buffer_pos = 0;
         }
     };
     cursor begin_cursor() const {
@@ -520,7 +531,7 @@ private:
     friend struct ranges::range_access;
     Rng m_rng;
     NormalizationForm m_normalization_form;
-};
+};    // namespace unicode
 
 template<NormalizationForm F, typename... Rng>
 auto make_normalization_view(Rng... rng) {
@@ -553,6 +564,7 @@ void copy(Rng&& rng, Ot&& ot) {
 
 inline std::u32string normalized(const std::u32string& in, NormalizationForm F) {
     std::u32string out;
+    out.reserve(in.size());
     auto v = ranges::view::all(in) | views::normalize(F);
     copy(v, std::back_inserter(out));
     return out;

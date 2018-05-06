@@ -29,7 +29,7 @@ struct alignas(4) hangul_syllable {
     hangul_syllable_type syllable_type : 8;
 };
 
-ranges::iterator_range<const hangul_syllable*> hangul_syllable_table();
+const ranges::iterator_range<const hangul_syllable*>& hangul_syllable_table();
 
 inline bool operator<(const hangul_syllable& a, const hangul_syllable& b) {
     return a.codepoint < b.codepoint;
