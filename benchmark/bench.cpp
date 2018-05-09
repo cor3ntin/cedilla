@@ -97,6 +97,36 @@ NONIUS_BENCHMARK("ogonek_nfc-nfd", [](nonius::chronometer meter) {
     meter.measure([&]() { ogonek_normalized<ogonek::nfd>(str); });
 })
 
+
+////
+/// Qt
+///
+///
+NONIUS_BENCHMARK("qt_nfd-nfc", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    QString qstr = QString::fromUcs4(str.data(), str.size());
+    meter.measure([&]() { qstr.normalized(QString::NormalizationForm_C); });
+})
+
+NONIUS_BENCHMARK("qt_nfd-nfd", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    QString qstr = QString::fromUcs4(str.data(), str.size());
+    meter.measure([&]() { qstr.normalized(QString::NormalizationForm_D); });
+})
+
+NONIUS_BENCHMARK("qt_nfc-nfc", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    QString qstr = QString::fromUcs4(str.data(), str.size());
+    meter.measure([&]() { qstr.normalized(QString::NormalizationForm_C); });
+})
+
+NONIUS_BENCHMARK("qt_nfc-nfd", [](nonius::chronometer meter) {
+    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    QString qstr = QString::fromUcs4(str.data(), str.size());
+    meter.measure([&]() { qstr.normalized(QString::NormalizationForm_D); });
+})
+
+
 #endif
 
 const std::u32string data = UR"(

@@ -7,4 +7,6 @@ add_executable(bench bench.cpp
                      )
 target_include_directories(bench PRIVATE "nonius/include" "ogonek/include" "ogonek/deps/taussig/include" "ogonek/deps/wheels/include")
 target_compile_definitions(bench PRIVATE -DOGONEK_DETAIL_BOOST_HASH_UNICODE_HPP)
-target_link_libraries(bench ucdcpp Threads::Threads)
+find_package(Qt5Core)
+target_link_libraries(bench ucdcpp Threads::Threads Qt5::Core)
+
