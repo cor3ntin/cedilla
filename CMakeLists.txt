@@ -14,6 +14,18 @@ foreach(val RANGE 0 37)
 endforeach()
 
 
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ucd/ucd.all.xml)
+  message("Fetching unicode data")
+  file(DOWNLOAD "ftp://ftp.unicode.org/Public/10.0.0/ucdxml/ucd.all.flat.zip" ${CMAKE_CURRENT_SOURCE_DIR}/ucd/ucd.all.flat.zip)
+  execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf ucd.all.flat.zip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ucd)
+endif()
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ucd/NormalizationTest.txt)
+  message("Fetching unicode tests")
+  file(DOWNLOAD "ftp://ftp.unicode.org/Public/10.0.0/ucd/NormalizationTest.txt" ${CMAKE_CURRENT_SOURCE_DIR}/ucd/NormalizationTest.txt)
+endif()
+
+
+
 set(CMAKE_CXX_STANDARD 17)
 
 add_custom_command(OUTPUT
