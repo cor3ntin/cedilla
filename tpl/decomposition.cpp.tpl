@@ -1,6 +1,6 @@
-#include <ucd/decomposition.h>
+#include <cedilla/detail/normalization_view.hpp>
 
-namespace unicode::details {
+namespace cedilla::detail {
     static const std::array<decomposition_jumping_table_item, {{block_count}}+1> decomposition_jumping_table_data = {
         {{#blocks}}
         decomposition_jumping_table_item{ {{first}}, {{start}}, {{size}}, {{number_of_replacements}}, {{has_canonical}}},  //{{name}} [{{first}}, {{last}}]
@@ -45,7 +45,7 @@ namespace unicode::details {
         const uint8_t  idx   = c & 0xff;
         const uint16_t start = ccc_data_idx[idx];
         const uint16_t end   = ccc_data_idx[idx+1];
-        for(auto it = ccc_data+start; it < ccc_data+end; ++it) {
+        for(auto it = ccc_data+start; BOOST_UNLIKELY(it < ccc_data+end); ++it) {
             if(BOOST_LIKELY(it->cp > truncated))
                 return 0;
             if(BOOST_UNLIKELY(it->cp == truncated))

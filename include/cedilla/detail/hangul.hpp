@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <range/v3/view.hpp>
 
-namespace unicode::details {
+namespace cedilla::detail {
 
 enum class hangul_syllable_type : uint8_t {
     invalid = 0x00,
@@ -82,4 +82,4 @@ inline hangul_syllable_type find_decomposable_hangul_syllable_type(char32_t code
 }
 
 
-}    // namespace unicode::details
+}    // namespace cedilla::detail

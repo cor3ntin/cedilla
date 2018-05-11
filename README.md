@@ -1,4 +1,4 @@
-# ucppd
+# Cedilla
 Some unicode algorithms
 
 ## Normalization
@@ -8,6 +8,6 @@ Some unicode algorithms
 - [x] NF(K)C
 - [x] Table memory optimization
 - [x] Hangul
-- [ ] Use concepts
-- [ ] `text_view` integration
+- [ ] Use concepts ?
+- [ ] `text_view` integration ?
 - [ ] Allocators ?

@@ -1,18 +1,19 @@
+project(cedilla)
+
 cmake_minimum_required(VERSION 3.5)
 
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
+include(CodeCoverage)
 
-#find_package(Boost 1.66.0 REQUIRED PATHS /home/cor3ntin/dev/boost_1_66_0/)
+find_package(Boost)
+
 find_package(PythonInterp 3 REQUIRED)
 
-include_directories(/home/cor3ntin/dev/boost_1_66_0 include ${CMAKE_BINARY_DIR}/generated/include range-v3/include/ tests/include)
-
-foreach(val RANGE 0 7)
+foreach(val RANGE 0 37)
     list(APPEND GENERATED_NORMALIZATIONS_TEST_CPP "${CMAKE_BINARY_DIR}/generated/test_decomposition_${val}.cpp")
 endforeach()
 
-SET(CMAKE_CXX_FLAGS "-O0")
-SET(CMAKE_C_FLAGS "-O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O0")
+
 set(CMAKE_CXX_STANDARD 17)
 
 add_custom_command(OUTPUT
@@ -24,29 +25,41 @@ add_custom_command(OUTPUT
                    DEPENDS
                         ${PROJECT_SOURCE_DIR}/gen_normalization_table.py
                         ${PROJECT_SOURCE_DIR}/tpl/decomposition.cpp.tpl
-                        ${PROJECT_SOURCE_DIR}/tpl/decomposition_data.h.tpl
                         ${PROJECT_SOURCE_DIR}/tpl/test_decomposition.cpp.tpl
                         ${PROJECT_SOURCE_DIR}/ucd/ucd.all.flat.xml
                         ${PROJECT_SOURCE_DIR}/ucd/NormalizationTest.txt
                    )
 
-add_library(ucdcpp SHARED
+#APPEND_COVERAGE_COMPILER_FLAGS()
+
+add_library(cedilla STATIC
     gen_normalization_table.py
-    tpl/decomposition_data.h.tpl
     tpl/decomposition.cpp.tpl
     ${CMAKE_BINARY_DIR}/generated/decomposition.cpp
+    include/cedilla/normalization.hpp
+    include/cedilla/detail/hangul.hpp
+    include/cedilla/detail/normalization_view.hpp
+)
+target_link_libraries(cedilla)
+
+
+target_include_directories(cedilla PUBLIC
+    ${Boost_INCLUDE_DIRS}
+    include
+    ${CMAKE_BINARY_DIR}/generated/include
+    range-v3/include
 )
 
-#set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
-#set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -fsanitize=address")
 add_subdirectory(benchmark)
 
-add_executable(tst_normalization
-    ${GENERATED_NORMALIZATIONS_TEST_CPP}
-    tests/tst_normalization.cpp
-    tpl/test_decomposition.cpp.tpl
-)
-target_link_libraries(tst_normalization ucdcpp)
+#add_executable(tst_normalization
+#    ${GENERATED_NORMALIZATIONS_TEST_CPP}
+#    tests/tst_normalization.cpp
+#    tpl/test_decomposition.cpp.tpl
+#)
+#add_test(tst_normalization tst_normalization)
+#target_link_libraries(tst_normalization ucdcpp gcov)
+#setup_target_for_coverage(NAME tst_normalization_coverage DEPENDENCIES tst_normalization EXECUTABLE tst_normalization)
 
 #set_property(GLOBAL PROPERTY JOB_POOLS two_jobs=2)
 #set_property(TARGET tst_normalization PROPERTY JOB_POOL_COMPILE two_jobs)

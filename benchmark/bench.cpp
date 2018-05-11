@@ -1,14 +1,15 @@
-#include <ucd/decomposition.h>
+#include <cedilla/normalization.hpp>
 #include "unilib/unilib/uninorms.h"
 #include <ogonek/normalization.h++>
+#include <QString>
 
 extern const std::u32string data;
 
 #if 0
 int main() {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
-    for(int i = 0; i < 1000; i++) {
-        unicode::normalized(str, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::NormalizationForm::NFD);
+    for(int i = 0; i < 10000; i++) {
+        cedilla::normalized(str, cedilla::NormalizationForm::NFD);
     }
 }
 
@@ -19,23 +20,23 @@ int main() {
 
 
 NONIUS_BENCHMARK("ucd_nfd-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
-    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFC); });
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
+    meter.measure([&]() { cedilla::normalized(data, cedilla::normalization_form::nfc); });
 })
 
 NONIUS_BENCHMARK("ucd_nfd-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
-    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFD); });
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
+    meter.measure([&]() { cedilla::normalized(data, cedilla::normalization_form::nfd); });
 })
 
 NONIUS_BENCHMARK("ucd_nfc-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
-    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFC); });
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
+    meter.measure([&]() { cedilla::normalized(data, cedilla::normalization_form::nfc); });
 })
 
 NONIUS_BENCHMARK("ucd_nfc-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
-    meter.measure([&]() { unicode::normalized(data, unicode::NormalizationForm::NFD); });
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
+    meter.measure([&]() { cedilla::normalized(data, cedilla::normalization_form::nfd); });
 })
 
 
@@ -44,22 +45,22 @@ NONIUS_BENCHMARK("ucd_nfc-nfd", [](nonius::chronometer meter) {
 
 
 NONIUS_BENCHMARK("unilib_nfd-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     meter.measure([&]() { ufal::unilib::uninorms::nfc(str); });
 })
 
 NONIUS_BENCHMARK("unilib_nfd-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     meter.measure([&]() { ufal::unilib::uninorms::nfd(str); });
 })
 
 NONIUS_BENCHMARK("unilib_nfc-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     meter.measure([&]() { ufal::unilib::uninorms::nfc(str); });
 })
 
 NONIUS_BENCHMARK("unilib_nfc-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     meter.measure([&]() { ufal::unilib::uninorms::nfd(str); });
 })
 
@@ -73,27 +74,27 @@ inline std::u32string ogonek_normalized(const std::u32string& in) {
     std::u32string str;
     str.reserve(in.size());
     auto r = ogonek::normalize<NormalizationForm>(in);
-    unicode::copy(r, std::back_inserter(str));
+    cedilla::copy(r, std::back_inserter(str));
     return str;
 }
 
 NONIUS_BENCHMARK("ogonek_nfd-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     meter.measure([&]() { ogonek_normalized<ogonek::nfc>(str); });
 })
 
 NONIUS_BENCHMARK("ogonek_nfd-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     meter.measure([&]() { ogonek_normalized<ogonek::nfd>(str); });
 })
 
 NONIUS_BENCHMARK("ogonek_nfc-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     meter.measure([&]() { ogonek_normalized<ogonek::nfc>(str); });
 })
 
 NONIUS_BENCHMARK("ogonek_nfc-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     meter.measure([&]() { ogonek_normalized<ogonek::nfd>(str); });
 })
 
@@ -103,25 +104,25 @@ NONIUS_BENCHMARK("ogonek_nfc-nfd", [](nonius::chronometer meter) {
 ///
 ///
 NONIUS_BENCHMARK("qt_nfd-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     QString qstr = QString::fromUcs4(str.data(), str.size());
     meter.measure([&]() { qstr.normalized(QString::NormalizationForm_C); });
 })
 
 NONIUS_BENCHMARK("qt_nfd-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFD);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfd);
     QString qstr = QString::fromUcs4(str.data(), str.size());
     meter.measure([&]() { qstr.normalized(QString::NormalizationForm_D); });
 })
 
 NONIUS_BENCHMARK("qt_nfc-nfc", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     QString qstr = QString::fromUcs4(str.data(), str.size());
     meter.measure([&]() { qstr.normalized(QString::NormalizationForm_C); });
 })
 
 NONIUS_BENCHMARK("qt_nfc-nfd", [](nonius::chronometer meter) {
-    auto str = unicode::normalized(data, unicode::NormalizationForm::NFC);
+    auto str = cedilla::normalized(data, cedilla::normalization_form::nfc);
     QString qstr = QString::fromUcs4(str.data(), str.size());
     meter.measure([&]() { qstr.normalized(QString::NormalizationForm_D); });
 })
