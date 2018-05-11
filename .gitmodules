@@ -9,7 +9,7 @@
 	url = https://github.com/ufal/unilib
 [submodule "benchmark/ogonek"]
 	path = benchmark/ogonek
-	url = https://github.com/libogonek/ogonek
+	url = https://github.com/rmartinho/ogonek
 [submodule "third_party/text_view-range-v3"]
 	path = third_party/text_view-range-v3
 	url = https://github.com/tahonermann/text_view-range-v3
