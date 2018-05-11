@@ -1,5 +1,5 @@
 [submodule "range-v3"]
-	path = range-v3
+	path = third_party/range-v3
 	url = git@github.com:ericniebler/range-v3.git
 [submodule "benchmark/nonius"]
 	path = benchmark/nonius
@@ -10,3 +10,6 @@
 [submodule "benchmark/ogonek"]
 	path = benchmark/ogonek
 	url = https://github.com/libogonek/ogonek
+[submodule "third_party/text_view-range-v3"]
+	path = third_party/text_view-range-v3
+	url = https://github.com/tahonermann/text_view-range-v3

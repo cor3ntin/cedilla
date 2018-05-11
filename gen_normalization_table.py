@@ -99,9 +99,9 @@ def char_to_dict(char, replacements):
 def unicode_characters_gen():
     context = etree.iterparse(UNICODE_DATA, events=('end',))
     for action, elem in context:
-        if elem.tag=='char':
+        if elem.tag=='{http://www.unicode.org/ns/2003/ucd/1.0}char':
             yield ucd_cp(elem)
-        if elem.tag=='block':
+        if elem.tag=='{http://www.unicode.org/ns/2003/ucd/1.0}block':
             yield ucd_block(elem)
         elem.clear()
 
