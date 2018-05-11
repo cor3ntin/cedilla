@@ -7,6 +7,7 @@
 #include <range/v3/view/all.hpp>
 #include <boost/container/small_vector.hpp>
 #include <cedilla/detail/hangul.hpp>
+#include <cedilla/detail/unicode_base_view.hpp>
 
 namespace cedilla {
 
@@ -116,6 +117,11 @@ namespace detail {
     public:
         replacement() = delete;
         replacement(char32_t cp) : m_cp(cp), m_ccc(combining_class(codepoint())) {}
+        replacement(
+            std::experimental::text::character<std::experimental::text::unicode_character_set> cp) :
+            m_cp(cp),
+            m_ccc(combining_class(codepoint())) {}
+
 
         char32_t codepoint() const {
             return m_cp & ~(composed_bitmask);
@@ -462,13 +468,13 @@ namespace detail {
     }
 
     template<typename Rng>
-    struct normalization_view : ranges::v3::view_facade<normalization_view<Rng>, ranges::finite> {
+    struct normalization_view : unicode_view_base<normalization_view<Rng>, Rng> {
         normalization_view(Rng&& rng, normalization_form normalization_form) :
             m_rng(std::forward<Rng>(rng)),
             m_normalization_form(normalization_form) {}
         struct cursor {
         private:
-            using RngIt = typename Rng::const_iterator;
+            using RngIt = typename Rng::iterator;
             RngIt m_it, m_end;
             detail::buffer_t m_buffer;
             std::size_t m_buffer_pos;

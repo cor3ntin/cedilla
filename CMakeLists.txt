@@ -51,6 +51,8 @@ add_library(cedilla STATIC
     include/cedilla/normalization.hpp
     include/cedilla/detail/hangul.hpp
     include/cedilla/detail/normalization_view.hpp
+    include/cedilla/detail/unicode_base_view.hpp
+    third_party/text_view-range-v3/src/error_status.cpp
 )
 target_link_libraries(cedilla)
 
@@ -59,7 +61,8 @@ target_include_directories(cedilla PUBLIC
     ${Boost_INCLUDE_DIRS}
     include
     ${CMAKE_BINARY_DIR}/generated/include
-    range-v3/include
+    third_party/range-v3/include
+    third_party/text_view-range-v3/include
 )
 
 add_subdirectory(benchmark)
