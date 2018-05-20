@@ -3,4 +3,4 @@
 	url = git@github.com:ericniebler/range-v3.git
 [submodule "third_party/text_view-range-v3"]
 	path = third_party/text_view-range-v3
-	url = https://github.com/tahonermann/text_view-range-v3
+	url = https://github.com/cor3ntin/text_view-range-v3
